@@ -3,7 +3,8 @@ using UnityEditor;
 using UnityEngine.UIElements;
 using System;
 using System.Collections.Generic;
-using Unity.VisualScripting;
+using BuildingToolUtils;
+
 
 public class BuildingTool : EditorWindow
 {
@@ -12,9 +13,9 @@ public class BuildingTool : EditorWindow
     string toolTitle = "Modular Bulding Tool (Basic Version)";
     int selectedTab = 0;
     string[] tabTitles = { "Build", "Instructions" };
-    GameObject selectedPrefab;
+    //GameObject selectedPrefab;
     GameObject previewInstance;
-    enum ToolState { NoBuild, BuildInitiated };
+    Module selectedObject;
     ToolState buildState;
     Dictionary<string, bool> foldoutStates = new();
 
@@ -28,10 +29,10 @@ public class BuildingTool : EditorWindow
 
     //Fields
     string buildingName = "New Building";
-    GameObject[] floorPrefabs;
-    GameObject[] wallPrefabs;
-    GameObject[] roofPrefabs;
-    GameObject[] propsPrefabs;
+    Module[] floorPrefabs;
+    Module[] wallPrefabs;
+    Module[] roofPrefabs;
+    Module[] propsPrefabs;
 
     //State Management
     void SaveState() => EditorPrefs.SetInt("BuildState", (int)buildState);
@@ -113,14 +114,14 @@ public class BuildingTool : EditorWindow
         {
             bool confirm = EditorUtility.DisplayDialog(
                 "WARNING",
-                "This will delete this building for good, are you sure?",
+                "This will delete the current building for good, are you sure?",
                 "Yes",
                 "No");
 
             if (confirm)
             {
                 buildState = ToolState.NoBuild;
-                selectedPrefab = null;
+                selectedObject.Clear();
                 DestroyImmediate(root);
                 DestroyPreview();
                 Repaint();
@@ -130,7 +131,7 @@ public class BuildingTool : EditorWindow
         GUILayout.EndHorizontal();
 
         DrawFoldout("Floor", floorPrefabs);
-        DrawFoldout("Walls", wallPrefabs);
+        DrawFoldout("Wall", wallPrefabs);
         DrawFoldout("Roof", roofPrefabs);
         DrawFoldout("Props", propsPrefabs);
 
@@ -144,10 +145,10 @@ public class BuildingTool : EditorWindow
     void ExecuteBuildTab()
     {
         if (buildState != ToolState.BuildInitiated) return;
-        if (selectedPrefab == null) return;
+        if (selectedObject.IsNull()) return;
 
 
-        if (previewInstance == null || previewInstance.name != selectedPrefab.name + "_preview")
+        if (previewInstance == null || previewInstance.name != selectedObject.prefab.name + "_preview")
         {
             DestroyPreview();
             CreatePreviewInstance();
@@ -165,10 +166,10 @@ public class BuildingTool : EditorWindow
     #region Building Tools
     void LoadAllPrefabs()
     {
-        floorPrefabs = LoadPrefabsFromFolder(floorPath);
-        wallPrefabs = LoadPrefabsFromFolder(wallPath);
-        roofPrefabs = LoadPrefabsFromFolder(roofPath);
-        propsPrefabs = LoadPrefabsFromFolder(propsPath);
+        floorPrefabs = LoadPrefabsFromFolder(floorPath, ModuleType.FLOOR);
+        wallPrefabs = LoadPrefabsFromFolder(wallPath, ModuleType.WALL);
+        roofPrefabs = LoadPrefabsFromFolder(roofPath, ModuleType.ROOF);
+        propsPrefabs = LoadPrefabsFromFolder(propsPath, ModuleType.PROPS);
     }
 
     void InitFoldOutStates()
@@ -179,7 +180,7 @@ public class BuildingTool : EditorWindow
         foldoutStates["Props"] = false;
     }
 
-    void DrawFoldout(string label, GameObject[] prefabs)
+    void DrawFoldout(string label, Module[] modules)
     {
         if (!foldoutStates.ContainsKey(label))
             foldoutStates[label] = false;
@@ -187,24 +188,24 @@ public class BuildingTool : EditorWindow
         foldoutStates[label] = EditorGUILayout.Foldout(foldoutStates[label], label, true);
         if (foldoutStates[label])
         {
-            DrawPrefabGrid(prefabs);
+            DrawPrefabGrid(modules);
         }
     }
 
-    void DrawPrefabGrid(GameObject[] prefabs)
+    void DrawPrefabGrid(Module[] modules)
     {
         int buttonsPerRow = 4;
         int i = 0;
 
-        while (i < prefabs.Length)
+        while (i < modules.Length)
         {
             EditorGUILayout.BeginHorizontal();
-            for (int j = 0; j < buttonsPerRow && i < prefabs.Length; j++, i++)
+            for (int j = 0; j < buttonsPerRow && i < modules.Length; j++, i++)
             {
-                GameObject prefab = prefabs[i];
+                GameObject prefab = modules[i].prefab;
                 if (GUILayout.Button(prefab.name, GUILayout.Width(80), GUILayout.Height(80)))
                 {
-                    selectedPrefab = prefab;
+                    selectedObject = modules[i];
                     EditorPrefs.SetString("SelectedPrefabPath", AssetDatabase.GetAssetPath(prefab));
                 }
             }
@@ -216,42 +217,49 @@ public class BuildingTool : EditorWindow
         root = new GameObject(buildingName);
         root.transform.position = Vector3.zero;
     }
-    private GameObject[] LoadPrefabsFromFolder(string path)
+    private Module[] LoadPrefabsFromFolder(string path, ModuleType type)
     {
         string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { path });
-        GameObject[] prefabs = new GameObject[guids.Length];
+        Module[] modules = new Module[guids.Length];
 
         for (int i = 0; i < guids.Length; i++)
         {
             string assetPath = AssetDatabase.GUIDToAssetPath(guids[i]);
-            prefabs[i] = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+            modules[i] = new Module(prefab, type);
         }
 
-        return prefabs;
+        return modules;
     }
 
     void SetPreviewMaterial(GameObject obj, Color color)
     {
+        BuildingToolUtility.InitGhostMaterial();
+        BuildingToolUtility.SetGhostColor(color);
+
+        Material ghostMat = BuildingToolUtility.GetGhostMaterial();
+
         Renderer[] renderers = obj.GetComponentsInChildren<Renderer>(); // Using arrays in case i add props
 
         foreach (Renderer renderer in renderers)
         {
-            Material ghostMat = new Material(Shader.Find("Unlit/Color"));
-            ghostMat.color = new Color(color.r, color.g, color.b, 0.4f); // Set Alpha
-
             Material[] ghostMats = new Material[renderer.sharedMaterials.Length];
 
             for (int i = 0; i < ghostMats.Length; i++) ghostMats[i] = ghostMat;
+
+            renderer.sharedMaterials = ghostMats;
+
         }
+
     }
 
     void CreatePreviewInstance() // Call in tick
     {
-        if (selectedPrefab == null) return;
+        if (selectedObject.IsNull()) return;
         if (previewInstance != null) DestroyPreview();
 
-        previewInstance = Instantiate(selectedPrefab);
-        previewInstance.name = selectedPrefab.name + "_preview";
+        previewInstance = Instantiate(selectedObject.prefab);
+        previewInstance.name = selectedObject.prefab.name + "_preview";
 
         SetPreviewMaterial(previewInstance, Color.red);
     }
@@ -278,12 +286,11 @@ public class BuildingTool : EditorWindow
 
             // Visual Feedback
             Color previewColor = IsValidPosition() ? Color.green : Color.red;
+            SetPreviewMaterial(previewInstance, previewColor);
+
         }
     }
      
-
-
-
     private bool IsValidPosition()
     {
         if (previewInstance == null) return false;
@@ -316,16 +323,23 @@ public class BuildingTool : EditorWindow
         return bounds;
     }
 
+    // Inputs
     void HandleInput_Placement()
     {
         Event e = Event.current;
 
         if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Space)
         {
-            Debug.Log("accetto input");
+            if(!selectedObject.IsNull() && IsValidPosition())
+            {
+                GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position, previewInstance.transform.rotation);
+                placed.transform.parent = root.transform;
+            }
             e.Use();
         }
     }
+
+
 
 
     #endregion
