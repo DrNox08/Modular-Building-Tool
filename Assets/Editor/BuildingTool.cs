@@ -17,6 +17,7 @@ public class BuildingTool : EditorWindow
     GameObject previewInstance;
     Module selectedObject;
     ToolState buildState;
+    List<int> currentFloor;
     Dictionary<string, bool> foldoutStates = new();
 
 
@@ -70,6 +71,7 @@ public class BuildingTool : EditorWindow
         var centerBold = new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter };
         EditorGUILayout.LabelField(toolTitle, centerBold, GUILayout.ExpandWidth(true));
         GUILayout.Space(15);
+
         //Tabs
         selectedTab = GUILayout.Toolbar(selectedTab, tabTitles, EditorStyles.toolbarButton);
 
@@ -84,7 +86,7 @@ public class BuildingTool : EditorWindow
     {
         ExecuteBuildTab();
     }
-        
+
 
 
     void DrawBuildTab(ToolState state)
@@ -110,30 +112,24 @@ public class BuildingTool : EditorWindow
         // ACTUAL BUILDING TOOL
         GUILayout.BeginHorizontal();
         GUILayout.Label(buildingName, EditorStyles.boldLabel);
-        if (GUILayout.Button("Discard Building", EditorStyles.miniButtonRight))
+        if (BuildingToolUtility.DrawButton_Discard())
         {
-            bool confirm = EditorUtility.DisplayDialog(
-                "WARNING",
-                "This will delete the current building for good, are you sure?",
-                "Yes",
-                "No");
-
-            if (confirm)
-            {
-                buildState = ToolState.NoBuild;
-                selectedObject.Clear();
-                DestroyImmediate(root);
-                DestroyPreview();
-                Repaint();
-                SaveState();
-            }
+            buildState = ToolState.NoBuild;
+            selectedObject.Clear();
+            DestroyImmediate(root);
+            DestroyPreview();
+            Repaint();
+            SaveState();
         }
+       
         GUILayout.EndHorizontal();
-
+        BuildingToolUtility.DrawSeparationLine(Color.white);
         DrawFoldout("Floor", floorPrefabs);
         DrawFoldout("Wall", wallPrefabs);
         DrawFoldout("Roof", roofPrefabs);
         DrawFoldout("Props", propsPrefabs);
+        BuildingToolUtility.DrawSeparationLine(Color.white);
+        BuildingToolUtility.DrawCentered(() => BuildingToolUtility.DrawButton_OptimizeColliders(floorParent, wallParent, roofParent));
 
     }
 
@@ -192,7 +188,7 @@ public class BuildingTool : EditorWindow
         }
     }
 
-    void DrawPrefabGrid(Module[] modules)
+    void DrawPrefabGrid(Module[] modules) // Foldouts Buttons
     {
         int buttonsPerRow = 4;
         int i = 0;
@@ -216,6 +212,12 @@ public class BuildingTool : EditorWindow
     {
         root = new GameObject(buildingName);
         root.transform.position = Vector3.zero;
+    }
+    GameObject CreateChildParent(string name)
+    {
+        GameObject parent = new GameObject(name);
+        parent.transform.parent = root.transform;
+        return parent;
     }
     private Module[] LoadPrefabsFromFolder(string path, ModuleType type)
     {
@@ -290,7 +292,7 @@ public class BuildingTool : EditorWindow
 
         }
     }
-     
+
     private bool IsValidPosition()
     {
         if (previewInstance == null) return false;
@@ -330,12 +332,36 @@ public class BuildingTool : EditorWindow
 
         if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Space)
         {
-            if(!selectedObject.IsNull() && IsValidPosition())
+            if (!selectedObject.IsNull() && IsValidPosition())
             {
+                ModuleType currentModuleType = selectedObject.moduleType;
                 GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position, previewInstance.transform.rotation);
-                placed.transform.parent = root.transform;
+                placed.transform.parent = GetParent(currentModuleType).transform;
+                placed.name = selectedObject.prefab.name + "_" + (placed.transform.parent.childCount + 1).ToString();
             }
             e.Use();
+        }
+    }
+
+    GameObject GetParent(ModuleType moduleType)
+    {
+        switch (moduleType)
+        {
+            case ModuleType.FLOOR:
+                return floorParent = floorParent != null ? floorParent : CreateChildParent("Floors");
+
+            case ModuleType.WALL:
+                return wallParent = wallParent != null ? wallParent : CreateChildParent("Walls");
+
+            case ModuleType.ROOF:
+                return roofParent = roofParent != null ? roofParent : CreateChildParent("Roof");
+
+            case ModuleType.PROPS:
+                return propsParent = propsParent != null ? propsParent : CreateChildParent("Props");
+
+            default:
+                Debug.LogWarning("Unknown module type");
+                return null;
         }
     }
 
