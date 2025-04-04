@@ -17,7 +17,8 @@ public class BuildingTool : EditorWindow
     GameObject previewInstance;
     Module selectedObject;
     ToolState buildState;
-    List<int> currentFloor;
+    Collider closestModule;
+    float snappingTreshold = 1.5f;
     Dictionary<string, bool> foldoutStates = new();
 
 
@@ -263,6 +264,8 @@ public class BuildingTool : EditorWindow
         previewInstance = Instantiate(selectedObject.prefab);
         previewInstance.name = selectedObject.prefab.name + "_preview";
 
+        //previewInstance.hideFlags = HideFlags.HideInHierarchy;
+
         SetPreviewMaterial(previewInstance, Color.red);
     }
 
@@ -286,6 +289,26 @@ public class BuildingTool : EditorWindow
             Vector3 hitPoint = ray.GetPoint(enter);
             previewInstance.transform.position = hitPoint;
 
+            //Find close modules
+            var bounds = CalculateBounds(previewInstance);
+            Vector3 halfExtents = bounds.extents * 0.98f;
+            Collider[] hits = Physics.OverlapBox(bounds.center,bounds.extents * 3f, previewInstance.transform.rotation);
+            float closestDist = float.MaxValue;
+            GameObject closestModule = null;
+            foreach (var col in hits)
+            {
+                if (col.transform.IsChildOf(previewInstance.transform)) continue;
+                float dist = Vector3.Distance(col.transform.position, previewInstance.transform.position);
+                if (dist < closestDist)
+                {
+                    closestDist = dist;
+                    closestModule = col.gameObject;
+                }
+            }
+            //Try Snapping
+            if(closestModule != null && closestDist <= snappingTreshold) SnapToClosestModule(closestModule);
+
+           
             // Visual Feedback
             Color previewColor = IsValidPosition() ? Color.green : Color.red;
             SetPreviewMaterial(previewInstance, previewColor);
@@ -299,7 +322,7 @@ public class BuildingTool : EditorWindow
 
         Bounds bounds = CalculateBounds(previewInstance);
 
-        Vector3 halfExtents = bounds.extents * 0.98f; // Tollerance
+        Vector3 halfExtents = bounds.extents * 0.98f; // Tolerance
 
         Collider[] overlaps = Physics.OverlapBox(bounds.center, halfExtents, previewInstance.transform.rotation);
 
@@ -309,6 +332,32 @@ public class BuildingTool : EditorWindow
         }
         return true;
     }
+
+    void SnapToClosestModule(GameObject target)
+    {
+        Bounds targetBounds = CalculateBounds(target);
+        Bounds previewBounds = CalculateBounds(previewInstance);
+
+        Vector3 direction = (previewInstance.transform.position - target.transform.position).normalized;
+        Vector3 snapOffset = Vector3.zero;
+
+        if (Mathf.Abs(direction.x) > Mathf.Abs(direction.z))
+        {
+            float offset = (targetBounds.extents.x + previewBounds.extents.x);
+            snapOffset = new Vector3(Mathf.Sign(direction.x) * offset, 0, 0);
+        }
+        else
+        {
+            float offset = (targetBounds.extents.z + previewBounds.extents.z);
+            snapOffset = new Vector3(0, 0, Mathf.Sign(direction.z) * offset);
+        }
+
+        // Applica il nuovo posizionamento
+        Vector3 targetPos = target.transform.position + snapOffset;
+        targetPos.y = previewInstance.transform.position.y;
+        previewInstance.transform.position = targetPos;
+    }
+
 
     Bounds CalculateBounds(GameObject obj)
     {
@@ -338,6 +387,8 @@ public class BuildingTool : EditorWindow
                 GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position, previewInstance.transform.rotation);
                 placed.transform.parent = GetParent(currentModuleType).transform;
                 placed.name = selectedObject.prefab.name + "_" + (placed.transform.parent.childCount + 1).ToString();
+                placed.transform.GetChild(0).name = placed.name;
+                Undo.RegisterCreatedObjectUndo(placed,"Object Spawned: "+placed.name);
             }
             e.Use();
         }
