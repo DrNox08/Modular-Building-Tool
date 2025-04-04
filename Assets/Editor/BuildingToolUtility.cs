@@ -28,7 +28,7 @@ namespace BuildingToolUtils
             }
         }
 
-        public static Material GetGhostMaterial()=> ghostMaterial;
+        public static Material GetGhostMaterial() => ghostMaterial;
         #endregion
 
         #region Editor Draw Helper Functions
@@ -48,7 +48,7 @@ namespace BuildingToolUtils
 
         public static bool DrawButton_OptimizeColliders(GameObject _floorParent, GameObject _wallParent, GameObject _roofParent)
         {
-            if(GUILayout.Button("Optimize Colliders", EditorStyles.miniButtonMid, GUILayout.Width(500)))
+            if (GUILayout.Button("Optimize Colliders", EditorStyles.miniButtonMid, GUILayout.Width(500)))
             {
                 return EditorUtility.DisplayDialog(
                     "WARNING",
@@ -61,6 +61,7 @@ namespace BuildingToolUtils
 
         //TODO: BUTTON TO REMOVE ALL COLLIDERS
         //TODO: BUTTON TO SAVE THE PREFAB
+
 
         public static void DrawCentered(Action drawFunc)
         {
@@ -84,6 +85,36 @@ namespace BuildingToolUtils
             r.width += 6;
             EditorGUI.DrawRect(r, color);
         }
+        #endregion
+
+        #region Logic Helper Functions
+        public static void RefocusCameraOnTarget(GameObject preview)
+        {
+            SceneView.lastActiveSceneView.LookAt(preview.transform.position);
+        }
+
+
+
+
+        public static Bounds CalculateBounds(GameObject obj)
+        {
+            Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
+
+            if (renderers.Length == 0) return new Bounds(obj.transform.position, Vector3.zero);
+
+            Bounds bounds = renderers[0].bounds;
+
+            for (int i = 1; i < renderers.Length; i++)
+            {
+                bounds.Encapsulate(renderers[i].bounds);
+            }
+            return bounds;
+        }
+
+
+
+
+
         #endregion
 
     }

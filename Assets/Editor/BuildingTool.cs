@@ -17,10 +17,12 @@ public class BuildingTool : EditorWindow
     GameObject previewInstance;
     Module selectedObject;
     ToolState buildState;
-    Collider closestModule;
+    int currentFloor;
     float snappingTreshold = 1.5f;
     Dictionary<string, bool> foldoutStates = new();
 
+    // Settings
+    bool cameraHelper_Activation;
 
     // Paths
     string floorPath = "Assets/Prefabs/Floor";
@@ -35,6 +37,11 @@ public class BuildingTool : EditorWindow
     Module[] wallPrefabs;
     Module[] roofPrefabs;
     Module[] propsPrefabs;
+
+    //Internal
+    float floorChangeCooldown = 0.2f; // 200ms
+    float lastFloorChangeTime = -1f;
+
 
     //State Management
     void SaveState() => EditorPrefs.SetInt("BuildState", (int)buildState);
@@ -58,6 +65,7 @@ public class BuildingTool : EditorWindow
         LoadState();
         LoadAllPrefabs();
         InitFoldOutStates();
+        currentFloor = 0;
         SceneView.duringSceneGui += DuringSceneGUI;
 
     }
@@ -122,8 +130,13 @@ public class BuildingTool : EditorWindow
             Repaint();
             SaveState();
         }
-       
+
         GUILayout.EndHorizontal();
+        BuildingToolUtility.DrawSeparationLine(Color.white);
+        BuildingToolUtility.DrawCentered(() => GUILayout.Label("SETTINGS"));
+        GUILayout.Toggle(cameraHelper_Activation, "Enable Camera Correction");
+        BuildingToolUtility.DrawSeparationLine(Color.white);
+        GUILayout.Label("Current Floor: " + currentFloor / 3, EditorStyles.boldLabel);
         BuildingToolUtility.DrawSeparationLine(Color.white);
         DrawFoldout("Floor", floorPrefabs);
         DrawFoldout("Wall", wallPrefabs);
@@ -151,9 +164,13 @@ public class BuildingTool : EditorWindow
             CreatePreviewInstance();
         }
 
-        UpdatePreviewPosition();
         HandleInput_Placement();
+        HandleInput_ModifyPreview();
+        UpdatePreviewPosition();
+        //BuildingToolUtility.EnsureCameraDistanceFromPreview(previewInstance);
         SceneView.RepaintAll();
+        if (previewInstance != null)
+            Debug.Log(Vector3.Distance(SceneView.lastActiveSceneView.camera.transform.position, previewInstance.transform.position));
     }
     void DrawInstructionTab()
     {
@@ -280,7 +297,7 @@ public class BuildingTool : EditorWindow
         if (previewInstance == null) return;
 
         //Plane on Y = 0;
-        Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
+        Plane groundPlane = new Plane(Vector3.up, Vector3.zero + Vector3.up * currentFloor);
         Ray ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
         float enter;
 
@@ -290,9 +307,9 @@ public class BuildingTool : EditorWindow
             previewInstance.transform.position = hitPoint;
 
             //Find close modules
-            var bounds = CalculateBounds(previewInstance);
-            Vector3 halfExtents = bounds.extents * 0.98f;
-            Collider[] hits = Physics.OverlapBox(bounds.center,bounds.extents * 3f, previewInstance.transform.rotation);
+            var bounds = BuildingToolUtility.CalculateBounds(previewInstance);
+            Vector3 halfExtents = bounds.extents;
+            Collider[] hits = Physics.OverlapBox(bounds.center, bounds.extents * 3f, previewInstance.transform.rotation);
             float closestDist = float.MaxValue;
             GameObject closestModule = null;
             foreach (var col in hits)
@@ -306,13 +323,13 @@ public class BuildingTool : EditorWindow
                 }
             }
             //Try Snapping
-            if(closestModule != null && closestDist <= snappingTreshold) SnapToClosestModule(closestModule);
+            if (closestModule != null && closestDist <= snappingTreshold) SnapToClosestModule(closestModule);
 
-           
             // Visual Feedback
             Color previewColor = IsValidPosition() ? Color.green : Color.red;
             SetPreviewMaterial(previewInstance, previewColor);
-
+            HandleUtility.Repaint();
+            SceneView.RepaintAll();
         }
     }
 
@@ -320,7 +337,7 @@ public class BuildingTool : EditorWindow
     {
         if (previewInstance == null) return false;
 
-        Bounds bounds = CalculateBounds(previewInstance);
+        Bounds bounds = BuildingToolUtility.CalculateBounds(previewInstance);
 
         Vector3 halfExtents = bounds.extents * 0.98f; // Tolerance
 
@@ -335,8 +352,8 @@ public class BuildingTool : EditorWindow
 
     void SnapToClosestModule(GameObject target)
     {
-        Bounds targetBounds = CalculateBounds(target);
-        Bounds previewBounds = CalculateBounds(previewInstance);
+        Bounds targetBounds = BuildingToolUtility.CalculateBounds(target);
+        Bounds previewBounds = BuildingToolUtility.CalculateBounds(previewInstance);
 
         Vector3 direction = (previewInstance.transform.position - target.transform.position).normalized;
         Vector3 snapOffset = Vector3.zero;
@@ -356,42 +373,6 @@ public class BuildingTool : EditorWindow
         Vector3 targetPos = target.transform.position + snapOffset;
         targetPos.y = previewInstance.transform.position.y;
         previewInstance.transform.position = targetPos;
-    }
-
-
-    Bounds CalculateBounds(GameObject obj)
-    {
-        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
-
-        if (renderers.Length == 0) return new Bounds(obj.transform.position, Vector3.zero);
-
-        Bounds bounds = renderers[0].bounds;
-
-        for (int i = 1; i < renderers.Length; i++)
-        {
-            bounds.Encapsulate(renderers[i].bounds);
-        }
-        return bounds;
-    }
-
-    // Inputs
-    void HandleInput_Placement()
-    {
-        Event e = Event.current;
-
-        if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Space)
-        {
-            if (!selectedObject.IsNull() && IsValidPosition())
-            {
-                ModuleType currentModuleType = selectedObject.moduleType;
-                GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position, previewInstance.transform.rotation);
-                placed.transform.parent = GetParent(currentModuleType).transform;
-                placed.name = selectedObject.prefab.name + "_" + (placed.transform.parent.childCount + 1).ToString();
-                placed.transform.GetChild(0).name = placed.name;
-                Undo.RegisterCreatedObjectUndo(placed,"Object Spawned: "+placed.name);
-            }
-            e.Use();
-        }
     }
 
     GameObject GetParent(ModuleType moduleType)
@@ -415,6 +396,59 @@ public class BuildingTool : EditorWindow
                 return null;
         }
     }
+
+    // Inputs
+    void HandleInput_Placement()
+    {
+        Event e = Event.current;
+
+        if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Space)
+        {
+            if (!selectedObject.IsNull() && IsValidPosition())
+            {
+                ModuleType currentModuleType = selectedObject.moduleType;
+                GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position, previewInstance.transform.rotation);
+                placed.transform.parent = GetParent(currentModuleType).transform;
+                placed.name = selectedObject.prefab.name + "_" + (placed.transform.parent.childCount + 1).ToString();
+                placed.transform.GetChild(0).name = placed.name;
+                Undo.RegisterCreatedObjectUndo(placed, "Object Spawned: " + placed.name);
+            }
+            e.Use();
+        }
+    }
+
+    void HandleInput_ModifyPreview()
+    {
+        Event e = Event.current;
+
+        if (e.type == EventType.KeyDown && e.control)
+        {
+            float time = (float)EditorApplication.timeSinceStartup;
+            if (time - lastFloorChangeTime < floorChangeCooldown)
+                return; // Skip input if cooldown not finished - it avoids glitching when RefocusCameraOnTarget() is called too early
+
+            switch (e.keyCode)
+            {
+                case KeyCode.UpArrow:
+                    currentFloor += 3;
+                    SceneView.lastActiveSceneView.Repaint();
+                    BuildingToolUtility.RefocusCameraOnTarget(previewInstance);
+                    Repaint();
+                    e.Use();
+                    break;
+                case KeyCode.DownArrow:
+                    currentFloor = currentFloor >= 3 ? currentFloor -= 3 : 0;
+                    BuildingToolUtility.RefocusCameraOnTarget(previewInstance);
+                    Repaint();
+                    e.Use();
+                    break;
+            }
+            
+        }
+    }
+
+
+
 
 
 
