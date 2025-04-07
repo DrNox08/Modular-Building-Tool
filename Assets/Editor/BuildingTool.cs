@@ -38,9 +38,15 @@ public class BuildingTool : EditorWindow
     Module[] roofPrefabs;
     Module[] propsPrefabs;
 
-    //Internal
+    //Internal ---------------------------------------------------------------------------------\\
     float floorChangeCooldown = 0.2f; // 200ms
     float lastFloorChangeTime = -1f;
+    bool verticalSnap;
+    //Inputs
+    EditorKeyToggle input_IncreaseFloor = new(KeyCode.UpArrow, EventModifiers.Control);
+    EditorKeyToggle input_DecreaseFloor = new(KeyCode.DownArrow, EventModifiers.Control);
+    EditorKeyToggle input_RotateRight = new(KeyCode.RightArrow, EventModifiers.Control);
+    EditorKeyToggle input_RotateLeft = new(KeyCode.LeftArrow, EventModifiers.Control);
 
 
     //State Management
@@ -66,6 +72,7 @@ public class BuildingTool : EditorWindow
         LoadAllPrefabs();
         InitFoldOutStates();
         currentFloor = 0;
+        verticalSnap = false;
         SceneView.duringSceneGui += DuringSceneGUI;
 
     }
@@ -91,6 +98,11 @@ public class BuildingTool : EditorWindow
         }
 
     }
+
+    void DrawInstructionTab()
+    {
+
+    }
     private void DuringSceneGUI(SceneView view)
     {
         ExecuteBuildTab();
@@ -112,6 +124,7 @@ public class BuildingTool : EditorWindow
                 CreateNewRoot();
                 buildState = ToolState.BuildInitiated;
                 SaveState();
+                BuildingToolUtility.ForceSceneFocus();
             }
             GUILayout.EndHorizontal();
             return;
@@ -134,7 +147,11 @@ public class BuildingTool : EditorWindow
         GUILayout.EndHorizontal();
         BuildingToolUtility.DrawSeparationLine(Color.white);
         BuildingToolUtility.DrawCentered(() => GUILayout.Label("SETTINGS"));
-        GUILayout.Toggle(cameraHelper_Activation, "Enable Camera Correction");
+        if (verticalSnap) GUILayout.Label("Snap: Vertical", EditorStyles.centeredGreyMiniLabel);
+        else GUILayout.Label("Snap: Horizontal (Standard)", EditorStyles.centeredGreyMiniLabel);
+
+
+
         BuildingToolUtility.DrawSeparationLine(Color.white);
         GUILayout.Label("Current Floor: " + currentFloor / 3, EditorStyles.boldLabel);
         BuildingToolUtility.DrawSeparationLine(Color.white);
@@ -146,6 +163,7 @@ public class BuildingTool : EditorWindow
         BuildingToolUtility.DrawCentered(() => BuildingToolUtility.DrawButton_OptimizeColliders(floorParent, wallParent, roofParent));
 
     }
+
 
 
 
@@ -164,17 +182,9 @@ public class BuildingTool : EditorWindow
             CreatePreviewInstance();
         }
 
-        HandleInput_Placement();
-        HandleInput_ModifyPreview();
+        ElaborateInputs();
         UpdatePreviewPosition();
-        //BuildingToolUtility.EnsureCameraDistanceFromPreview(previewInstance);
-        SceneView.RepaintAll();
-        if (previewInstance != null)
-            Debug.Log(Vector3.Distance(SceneView.lastActiveSceneView.camera.transform.position, previewInstance.transform.position));
-    }
-    void DrawInstructionTab()
-    {
-
+        //SceneView.RepaintAll();
     }
 
     #region Building Tools
@@ -220,7 +230,9 @@ public class BuildingTool : EditorWindow
                 if (GUILayout.Button(prefab.name, GUILayout.Width(80), GUILayout.Height(80)))
                 {
                     selectedObject = modules[i];
+
                     EditorPrefs.SetString("SelectedPrefabPath", AssetDatabase.GetAssetPath(prefab));
+                    FocusWindowIfItsOpen<SceneView>();
                 }
             }
             EditorGUILayout.EndHorizontal();
@@ -307,23 +319,48 @@ public class BuildingTool : EditorWindow
             previewInstance.transform.position = hitPoint;
 
             //Find close modules
-            var bounds = BuildingToolUtility.CalculateBounds(previewInstance);
-            Vector3 halfExtents = bounds.extents;
-            Collider[] hits = Physics.OverlapBox(bounds.center, bounds.extents * 3f, previewInstance.transform.rotation);
+            Bounds previewBounds = BuildingToolUtility.CalculateBounds(previewInstance);
+            Bounds uniformedBoundsXZ = previewBounds.Uniform();
+
+            Vector3 halfExtentsUniformed = uniformedBoundsXZ.extents;
+            Vector3 verticalExtents = previewBounds.extents;
+
+            halfExtentsUniformed.x *= 3;
+            halfExtentsUniformed.z *= 3;
+            halfExtentsUniformed.y = previewBounds.extents.y;
+
+            Collider[] hits;
+            if (!verticalSnap)
+            {
+                hits = Physics.OverlapBox(uniformedBoundsXZ.center, halfExtentsUniformed, previewInstance.transform.rotation);
+                Handles.DrawWireCube(uniformedBoundsXZ.center, halfExtentsUniformed * 2);
+
+            }
+            else
+            {
+                hits = Physics.OverlapBox(previewBounds.center + (Vector3.down * 2), verticalExtents + Vector3.up * 2);
+                Handles.DrawWireCube(previewBounds.center + (Vector3.down * 2), (verticalExtents + Vector3.up * 2) * 2);
+                BuildingToolUtility.DrawSolidSphere(previewBounds.center + (Vector3.down * 4), 0.1f);
+            }
             float closestDist = float.MaxValue;
             GameObject closestModule = null;
             foreach (var col in hits)
             {
+                Handles.color = Color.magenta;
+                Handles.DrawWireCube(col.bounds.center, col.bounds.size);
                 if (col.transform.IsChildOf(previewInstance.transform)) continue;
-                float dist = Vector3.Distance(col.transform.position, previewInstance.transform.position);
-                if (dist < closestDist)
+
+                float dist = Vector3.Distance(col.transform.position, uniformedBoundsXZ.BottomCenter());
+                if (dist < closestDist || verticalSnap)
                 {
                     closestDist = dist;
                     closestModule = col.gameObject;
                 }
+
             }
             //Try Snapping
-            if (closestModule != null && closestDist <= snappingTreshold) SnapToClosestModule(closestModule);
+
+            if (closestModule != null && closestDist <= snappingTreshold || closestModule != null && verticalSnap) SnapToClosestModule(closestModule);
 
             // Visual Feedback
             Color previewColor = IsValidPosition() ? Color.green : Color.red;
@@ -341,7 +378,7 @@ public class BuildingTool : EditorWindow
 
         Vector3 halfExtents = bounds.extents * 0.98f; // Tolerance
 
-        Collider[] overlaps = Physics.OverlapBox(bounds.center, halfExtents, previewInstance.transform.rotation);
+        Collider[] overlaps = Physics.OverlapBox(bounds.center, halfExtents, Quaternion.identity); // quaternion.identity fixes the invalid position issue
 
         foreach (Collider col in overlaps)
         {
@@ -355,9 +392,13 @@ public class BuildingTool : EditorWindow
         Bounds targetBounds = BuildingToolUtility.CalculateBounds(target);
         Bounds previewBounds = BuildingToolUtility.CalculateBounds(previewInstance);
 
-        Vector3 direction = (previewInstance.transform.position - target.transform.position).normalized;
+        Vector3 direction = (previewInstance.transform.position - target.transform.position).normalized; ;
         Vector3 snapOffset = Vector3.zero;
-
+        if (verticalSnap)
+        {
+            SnapVertically(target);
+            return;
+        }
         if (Mathf.Abs(direction.x) > Mathf.Abs(direction.z))
         {
             float offset = (targetBounds.extents.x + previewBounds.extents.x);
@@ -373,6 +414,12 @@ public class BuildingTool : EditorWindow
         Vector3 targetPos = target.transform.position + snapOffset;
         targetPos.y = previewInstance.transform.position.y;
         previewInstance.transform.position = targetPos;
+    }
+
+    void SnapVertically(GameObject target)
+    {
+        Vector3 snapPos = new(target.transform.position.x, previewInstance.transform.position.y, target.transform.position.z);
+        previewInstance.transform.position = snapPos;
     }
 
     GameObject GetParent(ModuleType moduleType)
@@ -411,6 +458,7 @@ public class BuildingTool : EditorWindow
                 placed.transform.parent = GetParent(currentModuleType).transform;
                 placed.name = selectedObject.prefab.name + "_" + (placed.transform.parent.childCount + 1).ToString();
                 placed.transform.GetChild(0).name = placed.name;
+                placed.transform.name = placed.name + "_MeshHolder";
                 Undo.RegisterCreatedObjectUndo(placed, "Object Spawned: " + placed.name);
             }
             e.Use();
@@ -442,8 +490,66 @@ public class BuildingTool : EditorWindow
                     Repaint();
                     e.Use();
                     break;
+                case KeyCode.LeftArrow:
+                    previewInstance.transform.Rotate(Vector3.up * -90);
+                    SceneView.lastActiveSceneView.Repaint();
+                    e.Use();
+                    break;
+                case KeyCode.RightArrow:
+                    previewInstance.transform.Rotate(Vector3.up * 90);
+                    SceneView.lastActiveSceneView.Repaint();
+                    e.Use();
+                    break;
+                case KeyCode.LeftAlt:
+                    verticalSnap = true;
+                    Repaint();
+                    e.Use();
+                    break;
             }
-            
+
+        }
+    }
+
+    void ElaborateInputs()
+    {
+        Event e = Event.current;
+
+        if(EditorKeyToggle.SpaceBar())
+        {
+            if (!selectedObject.IsNull() && IsValidPosition())
+            {
+                ModuleType currentModuleType = selectedObject.moduleType;
+                GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position, previewInstance.transform.rotation);
+                placed.transform.parent = GetParent(currentModuleType).transform;
+                placed.name = selectedObject.prefab.name + "_" + (placed.transform.parent.childCount + 1).ToString();
+                placed.transform.GetChild(0).name = placed.name;
+                placed.transform.name = placed.name + "_MeshHolder";
+                Undo.RegisterCreatedObjectUndo(placed, "Object Spawned: " + placed.name);
+            }
+        }
+
+        if (EditorKeyToggle.Ctrl(KeyCode.UpArrow))
+        {
+            currentFloor += 3;
+            SceneView.lastActiveSceneView.Repaint();
+            BuildingToolUtility.RefocusCameraOnTarget(previewInstance);
+            Repaint();
+        }
+        if (EditorKeyToggle.Ctrl(KeyCode.DownArrow))
+        {
+            currentFloor = currentFloor >= 3 ? currentFloor -= 3 : 0;
+            BuildingToolUtility.RefocusCameraOnTarget(previewInstance);
+            Repaint();
+        }
+        if (EditorKeyToggle.Ctrl(KeyCode.LeftArrow))
+        {
+            previewInstance.transform.Rotate(Vector3.up * -90);
+            SceneView.lastActiveSceneView.Repaint();
+        }
+        if (EditorKeyToggle.Ctrl(KeyCode.RightArrow))
+        {
+            previewInstance.transform.Rotate(Vector3.up * 90);
+            SceneView.lastActiveSceneView.Repaint();
         }
     }
 

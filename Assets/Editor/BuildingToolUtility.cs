@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.Remoting.Messaging;
 using UnityEditor;
 using UnityEngine;
 
@@ -93,7 +92,14 @@ namespace BuildingToolUtils
             SceneView.lastActiveSceneView.LookAt(preview.transform.position);
         }
 
-
+        public static void ForceSceneFocus()
+        {
+            if (SceneView.sceneViews.Count > 0)
+            {
+                SceneView sceneView = (SceneView)SceneView.sceneViews[0];
+                sceneView.Focus();
+            }
+        }
 
 
         public static Bounds CalculateBounds(GameObject obj)
@@ -111,12 +117,42 @@ namespace BuildingToolUtils
             return bounds;
         }
 
+        public static Bounds Uniform(this Bounds bounds)
+        {
+            if (Mathf.Approximately(bounds.extents.x, bounds.extents.z)) return bounds;
+
+            float maxExtent = Mathf.Max(bounds.extents.x, bounds.extents.z);
+            Vector3 newSize = new Vector3(maxExtent * 2f, bounds.size.y, maxExtent * 2f); // size, non extents!
+           
+            return new Bounds(bounds.center, newSize);
+        }
+
+
+        public static Vector3 BottomCenter(this Bounds bounds)
+        {
+            return new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+        }
+
+        public static Vector3 TopCenter(this Bounds bounds)
+        {
+            return new Vector3(bounds.center.x, bounds.max.y, bounds.max.z);
+        }
 
 
 
 
         #endregion
 
+        #region Gizmos
+
+        public static void DrawSolidSphere(Vector3 position, float radius)
+        {
+            Mesh sphere = Resources.GetBuiltinResource<Mesh>("Sphere.fbx");
+            Matrix4x4 matrix = Matrix4x4.TRS(position, Quaternion.identity, Vector3.one * radius * 2);
+            Graphics.DrawMeshNow(sphere, matrix);
+        }
+
+        #endregion
     }
     enum ToolState { NoBuild, BuildInitiated };
 
