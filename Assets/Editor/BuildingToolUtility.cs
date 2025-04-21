@@ -9,7 +9,9 @@ namespace BuildingToolUtils
         static Material ghostMaterial;
 
         // Material Preview Functions
-        #region Material 
+
+        #region Material
+
         public static void InitGhostMaterial()
         {
             if (ghostMaterial == null)
@@ -28,6 +30,7 @@ namespace BuildingToolUtils
         }
 
         public static Material GetGhostMaterial() => ghostMaterial;
+
         #endregion
 
         #region Editor Draw Helper Functions
@@ -42,10 +45,12 @@ namespace BuildingToolUtils
                     "Yes",
                     "No");
             }
+
             return false;
         }
 
-        public static bool DrawButton_OptimizeColliders(GameObject _floorParent, GameObject _wallParent, GameObject _roofParent)
+        public static bool DrawButton_OptimizeColliders(GameObject _floorParent, GameObject _wallParent,
+            GameObject _roofParent)
         {
             if (GUILayout.Button("Optimize Colliders", EditorStyles.miniButtonMid, GUILayout.Width(500)))
             {
@@ -55,6 +60,7 @@ namespace BuildingToolUtils
                     "Yes",
                     "no");
             }
+
             return false;
         }
 
@@ -84,9 +90,11 @@ namespace BuildingToolUtils
             r.width += 6;
             EditorGUI.DrawRect(r, color);
         }
+
         #endregion
 
         #region Logic Helper Functions
+
         public static void RefocusCameraOnTarget(GameObject preview)
         {
             SceneView.lastActiveSceneView.LookAt(preview.transform.position);
@@ -114,6 +122,7 @@ namespace BuildingToolUtils
             {
                 bounds.Encapsulate(renderers[i].bounds);
             }
+
             return bounds;
         }
 
@@ -123,7 +132,7 @@ namespace BuildingToolUtils
 
             float maxExtent = Mathf.Max(bounds.extents.x, bounds.extents.z);
             Vector3 newSize = new Vector3(maxExtent * 2f, bounds.size.y, maxExtent * 2f); // size, non extents!
-           
+
             return new Bounds(bounds.center, newSize);
         }
 
@@ -138,8 +147,20 @@ namespace BuildingToolUtils
             return new Vector3(bounds.center.x, bounds.max.y, bounds.max.z);
         }
 
+        public static ModuleType GetModuleTypeFromCollider(Collider col)
+        {
+            Transform current = col.transform;
+            while (current != null)
+            {
+                if (current.name.Contains("Floors")) return ModuleType.FLOOR;
+                if (current.name.Contains("Walls")) return ModuleType.WALL;
+                if (current.name.Contains("Roof")) return ModuleType.ROOF;
+                if (current.name.Contains("Props")) return ModuleType.PROPS;
+                current = current.parent;
+            }
 
-
+            return ModuleType.PROPS;
+        }
 
         #endregion
 
@@ -154,13 +175,19 @@ namespace BuildingToolUtils
 
         #endregion
     }
-    enum ToolState { NoBuild, BuildInitiated };
 
-    enum ModuleType
+    enum ToolState
+    {
+        NoBuild,
+        BuildInitiated
+    };
+
+    public enum ModuleType
     {
         FLOOR,
         WALL,
         ROOF,
+        CORNER,
         PROPS
     }
 
@@ -178,8 +205,5 @@ namespace BuildingToolUtils
         public bool IsNull() => prefab == null;
 
         public void Clear() => prefab = null;
-
     }
-
-
 }

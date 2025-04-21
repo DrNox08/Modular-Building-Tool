@@ -1,7 +1,5 @@
 using UnityEngine;
 using UnityEditor;
-using UnityEngine.UIElements;
-using System;
 using System.Collections.Generic;
 using BuildingToolUtils;
 
@@ -22,7 +20,7 @@ public class BuildingTool : EditorWindow
     Dictionary<string, bool> foldoutStates = new();
 
     // Settings
-    bool cameraHelper_Activation;
+    
 
     // Paths
     string floorPath = "Assets/Prefabs/Floor";
@@ -39,8 +37,6 @@ public class BuildingTool : EditorWindow
     Module[] propsPrefabs;
 
     //Internal ---------------------------------------------------------------------------------\\
-    float floorChangeCooldown = 0.2f; // 200ms
-    float lastFloorChangeTime = -1f;
     bool verticalSnap;
     //Inputs
     EditorKeyToggle input_IncreaseFloor = new(KeyCode.UpArrow, EventModifiers.Control);
@@ -149,9 +145,7 @@ public class BuildingTool : EditorWindow
         BuildingToolUtility.DrawCentered(() => GUILayout.Label("SETTINGS"));
         if (verticalSnap) GUILayout.Label("Snap: Vertical", EditorStyles.centeredGreyMiniLabel);
         else GUILayout.Label("Snap: Horizontal (Standard)", EditorStyles.centeredGreyMiniLabel);
-
-
-
+        
         BuildingToolUtility.DrawSeparationLine(Color.white);
         GUILayout.Label("Current Floor: " + currentFloor / 3, EditorStyles.boldLabel);
         BuildingToolUtility.DrawSeparationLine(Color.white);
@@ -338,8 +332,16 @@ public class BuildingTool : EditorWindow
             }
             else
             {
-                hits = Physics.OverlapBox(previewBounds.center + (Vector3.down * 2), verticalExtents + Vector3.up * 2);
-                Handles.DrawWireCube(previewBounds.center + (Vector3.down * 2), (verticalExtents + Vector3.up * 2) * 2);
+                Vector3 adjustedExtents = new Vector3(
+                    verticalExtents.x * 0.5f,
+                    verticalExtents.y + 2f,
+                    verticalExtents.z * 0.5f
+                );
+
+                Vector3 center = previewBounds.center + (Vector3.down * 2);
+
+                hits = Physics.OverlapBox(center, adjustedExtents);
+                Handles.DrawWireCube(center, adjustedExtents * 2);
                 BuildingToolUtility.DrawSolidSphere(previewBounds.center + (Vector3.down * 4), 0.1f);
             }
             float closestDist = float.MaxValue;
@@ -445,70 +447,6 @@ public class BuildingTool : EditorWindow
     }
 
     // Inputs
-    void HandleInput_Placement()
-    {
-        Event e = Event.current;
-
-        if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Space)
-        {
-            if (!selectedObject.IsNull() && IsValidPosition())
-            {
-                ModuleType currentModuleType = selectedObject.moduleType;
-                GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position, previewInstance.transform.rotation);
-                placed.transform.parent = GetParent(currentModuleType).transform;
-                placed.name = selectedObject.prefab.name + "_" + (placed.transform.parent.childCount + 1).ToString();
-                placed.transform.GetChild(0).name = placed.name;
-                placed.transform.name = placed.name + "_MeshHolder";
-                Undo.RegisterCreatedObjectUndo(placed, "Object Spawned: " + placed.name);
-            }
-            e.Use();
-        }
-    }
-
-    void HandleInput_ModifyPreview()
-    {
-        Event e = Event.current;
-
-        if (e.type == EventType.KeyDown && e.control)
-        {
-            float time = (float)EditorApplication.timeSinceStartup;
-            if (time - lastFloorChangeTime < floorChangeCooldown)
-                return; // Skip input if cooldown not finished - it avoids glitching when RefocusCameraOnTarget() is called too early
-
-            switch (e.keyCode)
-            {
-                case KeyCode.UpArrow:
-                    currentFloor += 3;
-                    SceneView.lastActiveSceneView.Repaint();
-                    BuildingToolUtility.RefocusCameraOnTarget(previewInstance);
-                    Repaint();
-                    e.Use();
-                    break;
-                case KeyCode.DownArrow:
-                    currentFloor = currentFloor >= 3 ? currentFloor -= 3 : 0;
-                    BuildingToolUtility.RefocusCameraOnTarget(previewInstance);
-                    Repaint();
-                    e.Use();
-                    break;
-                case KeyCode.LeftArrow:
-                    previewInstance.transform.Rotate(Vector3.up * -90);
-                    SceneView.lastActiveSceneView.Repaint();
-                    e.Use();
-                    break;
-                case KeyCode.RightArrow:
-                    previewInstance.transform.Rotate(Vector3.up * 90);
-                    SceneView.lastActiveSceneView.Repaint();
-                    e.Use();
-                    break;
-                case KeyCode.LeftAlt:
-                    verticalSnap = true;
-                    Repaint();
-                    e.Use();
-                    break;
-            }
-
-        }
-    }
 
     void ElaborateInputs()
     {
@@ -550,6 +488,11 @@ public class BuildingTool : EditorWindow
         {
             previewInstance.transform.Rotate(Vector3.up * 90);
             SceneView.lastActiveSceneView.Repaint();
+        }
+
+        if (EditorKeyToggle.Ctrl(KeyCode.LeftAlt))
+        {
+            verticalSnap = !verticalSnap;
         }
     }
 
