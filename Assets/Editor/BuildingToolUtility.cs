@@ -152,13 +152,14 @@ namespace BuildingToolUtils
             Transform current = col.transform;
             while (current != null)
             {
-                if (current.name.Contains("Floors")) return ModuleType.FLOOR;
-                if (current.name.Contains("Walls")) return ModuleType.WALL;
+                if (current.name.Contains("Floor")) return ModuleType.FLOOR;
+                if (current.name.Contains("Wall")) return ModuleType.WALL;
                 if (current.name.Contains("Roof")) return ModuleType.ROOF;
                 if (current.name.Contains("Props")) return ModuleType.PROPS;
+                if (current.name.Contains("Junction")) return ModuleType.CORNER;
                 current = current.parent;
             }
-
+            
             return ModuleType.PROPS;
         }
 

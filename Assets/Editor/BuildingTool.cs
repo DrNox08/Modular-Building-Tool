@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
+using System.Linq;
 using BuildingToolUtils;
 
 
@@ -8,9 +9,12 @@ public class BuildingTool : EditorWindow
 {
     [MenuItem("Tools/BuildingTool")]
     public static void OpenBuildingTool() => GetWindow<BuildingTool>();
+
     string toolTitle = "Modular Bulding Tool (Basic Version)";
     int selectedTab = 0;
+
     string[] tabTitles = { "Build", "Instructions" };
+
     //GameObject selectedPrefab;
     GameObject previewInstance;
     Module selectedObject;
@@ -20,13 +24,14 @@ public class BuildingTool : EditorWindow
     Dictionary<string, bool> foldoutStates = new();
 
     // Settings
-    
+
 
     // Paths
     string floorPath = "Assets/Prefabs/Floor";
     string wallPath = "Assets/Prefabs/Wall";
     string roofPath = "Assets/Prefabs/Roof";
     string propsPath = "Assets/Prefabs/Props";
+    string junctionsPath = "Assets/Prefabs/Junctions";
     // --------------------------------------------------------------------------------------\\
 
     //Fields
@@ -35,18 +40,15 @@ public class BuildingTool : EditorWindow
     Module[] wallPrefabs;
     Module[] roofPrefabs;
     Module[] propsPrefabs;
+    Module[] junctionsPrefabs;
 
     //Internal ---------------------------------------------------------------------------------\\
     bool verticalSnap;
-    //Inputs
-    EditorKeyToggle input_IncreaseFloor = new(KeyCode.UpArrow, EventModifiers.Control);
-    EditorKeyToggle input_DecreaseFloor = new(KeyCode.DownArrow, EventModifiers.Control);
-    EditorKeyToggle input_RotateRight = new(KeyCode.RightArrow, EventModifiers.Control);
-    EditorKeyToggle input_RotateLeft = new(KeyCode.LeftArrow, EventModifiers.Control);
 
 
     //State Management
     void SaveState() => EditorPrefs.SetInt("BuildState", (int)buildState);
+
     void LoadState()
     {
         if (EditorPrefs.HasKey("BuildState"))
@@ -62,6 +64,7 @@ public class BuildingTool : EditorWindow
     GameObject wallParent;
     GameObject roofParent;
     GameObject propsParent;
+
     private void OnEnable()
     {
         LoadState();
@@ -70,12 +73,13 @@ public class BuildingTool : EditorWindow
         currentFloor = 0;
         verticalSnap = false;
         SceneView.duringSceneGui += DuringSceneGUI;
-
     }
+
     private void OnDisable()
     {
         SceneView.duringSceneGui -= DuringSceneGUI;
     }
+
     private void OnGUI()
     {
         // Title
@@ -92,18 +96,16 @@ public class BuildingTool : EditorWindow
             case 0: DrawBuildTab(buildState); break;
             case 1: DrawInstructionTab(); break;
         }
-
     }
 
     void DrawInstructionTab()
     {
-
     }
+
     private void DuringSceneGUI(SceneView view)
     {
         ExecuteBuildTab();
     }
-
 
 
     void DrawBuildTab(ToolState state)
@@ -122,9 +124,11 @@ public class BuildingTool : EditorWindow
                 SaveState();
                 BuildingToolUtility.ForceSceneFocus();
             }
+
             GUILayout.EndHorizontal();
             return;
         }
+
         GUILayout.EndHorizontal();
 
         // ACTUAL BUILDING TOOL
@@ -145,23 +149,19 @@ public class BuildingTool : EditorWindow
         BuildingToolUtility.DrawCentered(() => GUILayout.Label("SETTINGS"));
         if (verticalSnap) GUILayout.Label("Snap: Vertical", EditorStyles.centeredGreyMiniLabel);
         else GUILayout.Label("Snap: Horizontal (Standard)", EditorStyles.centeredGreyMiniLabel);
-        
+
         BuildingToolUtility.DrawSeparationLine(Color.white);
         GUILayout.Label("Current Floor: " + currentFloor / 3, EditorStyles.boldLabel);
         BuildingToolUtility.DrawSeparationLine(Color.white);
         DrawFoldout("Floor", floorPrefabs);
         DrawFoldout("Wall", wallPrefabs);
         DrawFoldout("Roof", roofPrefabs);
+        DrawFoldout("Junctions", junctionsPrefabs);
         DrawFoldout("Props", propsPrefabs);
         BuildingToolUtility.DrawSeparationLine(Color.white);
-        BuildingToolUtility.DrawCentered(() => BuildingToolUtility.DrawButton_OptimizeColliders(floorParent, wallParent, roofParent));
-
+        BuildingToolUtility.DrawCentered(() =>
+            BuildingToolUtility.DrawButton_OptimizeColliders(floorParent, wallParent, roofParent));
     }
-
-
-
-
-
 
 
     void ExecuteBuildTab()
@@ -182,12 +182,14 @@ public class BuildingTool : EditorWindow
     }
 
     #region Building Tools
+
     void LoadAllPrefabs()
     {
         floorPrefabs = LoadPrefabsFromFolder(floorPath, ModuleType.FLOOR);
         wallPrefabs = LoadPrefabsFromFolder(wallPath, ModuleType.WALL);
         roofPrefabs = LoadPrefabsFromFolder(roofPath, ModuleType.ROOF);
         propsPrefabs = LoadPrefabsFromFolder(propsPath, ModuleType.PROPS);
+        junctionsPrefabs = LoadPrefabsFromFolder(junctionsPath, ModuleType.CORNER);
     }
 
     void InitFoldOutStates()
@@ -195,6 +197,7 @@ public class BuildingTool : EditorWindow
         foldoutStates["Floor"] = false;
         foldoutStates["Walls"] = false;
         foldoutStates["Roof"] = false;
+        foldoutStates["Junctions"] = false;
         foldoutStates["Props"] = false;
     }
 
@@ -229,20 +232,24 @@ public class BuildingTool : EditorWindow
                     FocusWindowIfItsOpen<SceneView>();
                 }
             }
+
             EditorGUILayout.EndHorizontal();
         }
     }
+
     void CreateNewRoot()
     {
         root = new GameObject(buildingName);
         root.transform.position = Vector3.zero;
     }
+
     GameObject CreateChildParent(string name)
     {
         GameObject parent = new GameObject(name);
         parent.transform.parent = root.transform;
         return parent;
     }
+
     private Module[] LoadPrefabsFromFolder(string path, ModuleType type)
     {
         string[] guids = AssetDatabase.FindAssets("t:Prefab", new[] { path });
@@ -274,9 +281,7 @@ public class BuildingTool : EditorWindow
             for (int i = 0; i < ghostMats.Length; i++) ghostMats[i] = ghostMat;
 
             renderer.sharedMaterials = ghostMats;
-
         }
-
     }
 
     void CreatePreviewInstance() // Call in tick
@@ -326,9 +331,9 @@ public class BuildingTool : EditorWindow
             Collider[] hits;
             if (!verticalSnap)
             {
-                hits = Physics.OverlapBox(uniformedBoundsXZ.center, halfExtentsUniformed, previewInstance.transform.rotation);
+                hits = Physics.OverlapBox(uniformedBoundsXZ.center, halfExtentsUniformed,
+                    previewInstance.transform.rotation);
                 Handles.DrawWireCube(uniformedBoundsXZ.center, halfExtentsUniformed * 2);
-
             }
             else
             {
@@ -344,6 +349,7 @@ public class BuildingTool : EditorWindow
                 Handles.DrawWireCube(center, adjustedExtents * 2);
                 BuildingToolUtility.DrawSolidSphere(previewBounds.center + (Vector3.down * 4), 0.1f);
             }
+
             float closestDist = float.MaxValue;
             GameObject closestModule = null;
             foreach (var col in hits)
@@ -352,17 +358,21 @@ public class BuildingTool : EditorWindow
                 Handles.DrawWireCube(col.bounds.center, col.bounds.size);
                 if (col.transform.IsChildOf(previewInstance.transform)) continue;
 
-                float dist = Vector3.Distance(col.transform.position, uniformedBoundsXZ.BottomCenter());
+                ModuleType targetType = BuildingToolUtility.GetModuleTypeFromCollider(col);
+
+                if (selectedObject.moduleType == ModuleType.CORNER && targetType != ModuleType.WALL) continue;
+                var colBounds = BuildingToolUtility.CalculateBounds(col.gameObject);
+                float dist = Vector3.Distance(colBounds.BottomCenter(), uniformedBoundsXZ.BottomCenter());
                 if (dist < closestDist || verticalSnap)
                 {
                     closestDist = dist;
                     closestModule = col.gameObject;
                 }
-
             }
             //Try Snapping
 
-            if (closestModule != null && closestDist <= snappingTreshold || closestModule != null && verticalSnap) SnapToClosestModule(closestModule);
+            if (closestModule != null && closestDist <= snappingTreshold || closestModule != null && verticalSnap)
+                SnapToClosestModule(closestModule);
 
             // Visual Feedback
             Color previewColor = IsValidPosition() ? Color.green : Color.red;
@@ -380,12 +390,15 @@ public class BuildingTool : EditorWindow
 
         Vector3 halfExtents = bounds.extents * 0.98f; // Tolerance
 
-        Collider[] overlaps = Physics.OverlapBox(bounds.center, halfExtents, Quaternion.identity); // quaternion.identity fixes the invalid position issue
+        Collider[]
+            overlaps = Physics.OverlapBox(bounds.center, halfExtents,
+                Quaternion.identity); // quaternion.identity fixes the invalid position issue
 
         foreach (Collider col in overlaps)
         {
             if (!col.transform.IsChildOf(previewInstance.transform)) return false;
         }
+
         return true;
     }
 
@@ -394,33 +407,66 @@ public class BuildingTool : EditorWindow
         Bounds targetBounds = BuildingToolUtility.CalculateBounds(target);
         Bounds previewBounds = BuildingToolUtility.CalculateBounds(previewInstance);
 
-        Vector3 direction = (previewInstance.transform.position - target.transform.position).normalized; ;
-        Vector3 snapOffset = Vector3.zero;
         if (verticalSnap)
         {
             SnapVertically(target);
             return;
         }
-        if (Mathf.Abs(direction.x) > Mathf.Abs(direction.z))
+
+        // --- Snapping personalizzato per i moduli CORNER
+        if (selectedObject.moduleType == ModuleType.CORNER)
+        {
+            Vector3 direction = (previewInstance.transform.position - target.transform.position).normalized;
+            Vector3 offset = Vector3.zero;
+
+            bool snapX = Mathf.Abs(direction.x) >= Mathf.Abs(direction.z);
+            if (snapX)
+            {
+                float dx = targetBounds.extents.x + previewBounds.extents.x;
+                offset = new Vector3(Mathf.Sign(direction.x) * dx, 0, 0);
+                previewInstance.transform.rotation = Quaternion.Euler(0, direction.x >= 0 ? 90 : -90, 0);
+            }
+            else
+            {
+                float dz = targetBounds.extents.z + previewBounds.extents.z;
+                offset = new Vector3(0, 0, Mathf.Sign(direction.z) * dz);
+                previewInstance.transform.rotation = Quaternion.Euler(0, direction.z >= 0 ? 0 : 180, 0);
+            }
+
+            Vector3 targetPos = target.transform.position + offset;
+            targetPos.y = previewInstance.transform.position.y;
+            previewInstance.transform.position = targetPos;
+            Debug.Log($"CORNER: dir = {direction}, target = {target.name}");
+            Debug.Log($"target.extents = {targetBounds.extents}, preview.extents = {previewBounds.extents}");
+
+            return; 
+        }
+
+        // --- Snapping standard per tutti gli altri moduli
+        Vector3 directionStandard = (previewInstance.transform.position - target.transform.position).normalized;
+        Vector3 snapOffset = Vector3.zero;
+
+        if (Mathf.Abs(directionStandard.x) > Mathf.Abs(directionStandard.z))
         {
             float offset = (targetBounds.extents.x + previewBounds.extents.x);
-            snapOffset = new Vector3(Mathf.Sign(direction.x) * offset, 0, 0);
+            snapOffset = new Vector3(Mathf.Sign(directionStandard.x) * offset, 0, 0);
         }
         else
         {
             float offset = (targetBounds.extents.z + previewBounds.extents.z);
-            snapOffset = new Vector3(0, 0, Mathf.Sign(direction.z) * offset);
+            snapOffset = new Vector3(0, 0, Mathf.Sign(directionStandard.z) * offset);
         }
 
-        // Applica il nuovo posizionamento
-        Vector3 targetPos = target.transform.position + snapOffset;
-        targetPos.y = previewInstance.transform.position.y;
-        previewInstance.transform.position = targetPos;
+        Vector3 newPos = target.transform.position + snapOffset;
+        newPos.y = previewInstance.transform.position.y;
+        previewInstance.transform.position = newPos;
     }
+
 
     void SnapVertically(GameObject target)
     {
-        Vector3 snapPos = new(target.transform.position.x, previewInstance.transform.position.y, target.transform.position.z);
+        Vector3 snapPos = new(target.transform.position.x, previewInstance.transform.position.y,
+            target.transform.position.z);
         previewInstance.transform.position = snapPos;
     }
 
@@ -440,6 +486,9 @@ public class BuildingTool : EditorWindow
             case ModuleType.PROPS:
                 return propsParent = propsParent != null ? propsParent : CreateChildParent("Props");
 
+            case ModuleType.CORNER:
+                return wallParent = wallParent != null ? wallParent : CreateChildParent("Walls");
+
             default:
                 Debug.LogWarning("Unknown module type");
                 return null;
@@ -452,12 +501,13 @@ public class BuildingTool : EditorWindow
     {
         Event e = Event.current;
 
-        if(EditorKeyToggle.SpaceBar())
+        if (EditorKeyToggle.SpaceBar())
         {
             if (!selectedObject.IsNull() && IsValidPosition())
             {
                 ModuleType currentModuleType = selectedObject.moduleType;
-                GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position, previewInstance.transform.rotation);
+                GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position,
+                    previewInstance.transform.rotation);
                 placed.transform.parent = GetParent(currentModuleType).transform;
                 placed.name = selectedObject.prefab.name + "_" + (placed.transform.parent.childCount + 1).ToString();
                 placed.transform.GetChild(0).name = placed.name;
@@ -473,17 +523,20 @@ public class BuildingTool : EditorWindow
             BuildingToolUtility.RefocusCameraOnTarget(previewInstance);
             Repaint();
         }
+
         if (EditorKeyToggle.Ctrl(KeyCode.DownArrow))
         {
             currentFloor = currentFloor >= 3 ? currentFloor -= 3 : 0;
             BuildingToolUtility.RefocusCameraOnTarget(previewInstance);
             Repaint();
         }
+
         if (EditorKeyToggle.Ctrl(KeyCode.LeftArrow))
         {
             previewInstance.transform.Rotate(Vector3.up * -90);
             SceneView.lastActiveSceneView.Repaint();
         }
+
         if (EditorKeyToggle.Ctrl(KeyCode.RightArrow))
         {
             previewInstance.transform.Rotate(Vector3.up * 90);
@@ -496,15 +549,5 @@ public class BuildingTool : EditorWindow
         }
     }
 
-
-
-
-
-
-
     #endregion
-
-
 }
-
-
