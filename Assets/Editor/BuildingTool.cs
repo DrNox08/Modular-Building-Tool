@@ -44,7 +44,8 @@ public class BuildingTool : EditorWindow
 
     //Internal ---------------------------------------------------------------------------------\\
     bool verticalSnap;
-
+    private Vector3 originalPreviewScale;
+    float currentSnappingTreshold;
 
     //State Management
     void SaveState() => EditorPrefs.SetInt("BuildState", (int)buildState);
@@ -72,6 +73,7 @@ public class BuildingTool : EditorWindow
         InitFoldOutStates();
         currentFloor = 0;
         verticalSnap = false;
+        currentSnappingTreshold = snappingTreshold;
         SceneView.duringSceneGui += DuringSceneGUI;
     }
 
@@ -104,6 +106,7 @@ public class BuildingTool : EditorWindow
 
     private void DuringSceneGUI(SceneView view)
     {
+        HandleScrollWheel();
         ExecuteBuildTab();
     }
 
@@ -227,6 +230,7 @@ public class BuildingTool : EditorWindow
                 if (GUILayout.Button(prefab.name, GUILayout.Width(80), GUILayout.Height(80)))
                 {
                     selectedObject = modules[i];
+                    originalPreviewScale = prefab.transform.localScale;
 
                     EditorPrefs.SetString("SelectedPrefabPath", AssetDatabase.GetAssetPath(prefab));
                     FocusWindowIfItsOpen<SceneView>();
@@ -371,7 +375,7 @@ public class BuildingTool : EditorWindow
             }
             //Try Snapping
 
-            if (closestModule != null && closestDist <= snappingTreshold || closestModule != null && verticalSnap)
+            if (closestModule != null && closestDist <= currentSnappingTreshold || closestModule != null && verticalSnap)
                 SnapToClosestModule(closestModule);
 
             // Visual Feedback
@@ -401,6 +405,49 @@ public class BuildingTool : EditorWindow
 
         return true;
     }
+    
+    void AdjustPreviewScale(float delta)
+    {
+        if (previewInstance == null) return;
+
+        float adjustAmount = Mathf.Sign(delta) * 0.1f;
+
+        Bounds bounds = BuildingToolUtility.CalculateBounds(previewInstance);
+
+        float sizeX = bounds.size.x;
+        float sizeZ = bounds.size.z;
+
+        Vector3 scale = previewInstance.transform.localScale;
+
+        if (Mathf.Abs(sizeX - sizeZ) < 0.01f) // 🔥 Se è un quadrato
+        {
+            // Scala entrambi
+            scale.x = Mathf.Max(0.1f, scale.x + adjustAmount);
+            scale.z = Mathf.Max(0.1f, scale.z + adjustAmount);
+            Debug.Log("[Adjust] Stretch BOTH X and Z (Square Shape)");
+        }
+        else if (sizeX > sizeZ)
+        {
+            // Scala solo X
+            scale.x = Mathf.Max(0.1f, scale.x + adjustAmount);
+            Debug.Log("[Adjust] Stretch X (Rectangle wider)");
+        }
+        else
+        {
+            // Scala solo Z
+            scale.z = Mathf.Max(0.1f, scale.z + adjustAmount);
+            Debug.Log("[Adjust] Stretch Z (Rectangle deeper)");
+        }
+        currentSnappingTreshold += adjustAmount;
+        previewInstance.transform.localScale = scale;
+
+        HandleUtility.Repaint();
+        SceneView.RepaintAll();
+    }
+
+
+
+
 
     void SnapToClosestModule(GameObject target)
     {
@@ -496,6 +543,27 @@ public class BuildingTool : EditorWindow
     }
 
     // Inputs
+    
+    
+    void HandleScrollWheel()
+    {
+        Event e = Event.current;
+        if (e != null && e.type == EventType.ScrollWheel)
+        {
+            bool shiftHeld = (e.modifiers & EventModifiers.Shift) != 0;
+
+            if (shiftHeld && previewInstance != null)
+            {
+                float scrollDelta = e.delta.x;
+                AdjustPreviewScale(scrollDelta);
+
+                e.Use();
+                HandleUtility.Repaint();
+                SceneView.RepaintAll();
+            }
+        }
+    }
+
 
     void ElaborateInputs()
     {
@@ -508,6 +576,7 @@ public class BuildingTool : EditorWindow
                 ModuleType currentModuleType = selectedObject.moduleType;
                 GameObject placed = Instantiate(selectedObject.prefab, previewInstance.transform.position,
                     previewInstance.transform.rotation);
+                placed.transform.localScale = previewInstance.transform.localScale; // Keep the modified scale
                 placed.transform.parent = GetParent(currentModuleType).transform;
                 placed.name = selectedObject.prefab.name + "_" + (placed.transform.parent.childCount + 1).ToString();
                 placed.transform.GetChild(0).name = placed.name;
@@ -547,6 +616,19 @@ public class BuildingTool : EditorWindow
         {
             verticalSnap = !verticalSnap;
         }
+        
+        if (EditorKeyToggle.CtrlMiddleMouseClick())
+        {
+            if (previewInstance != null)
+            {
+                previewInstance.transform.localScale = originalPreviewScale;
+                currentSnappingTreshold = snappingTreshold;
+                HandleUtility.Repaint();
+                SceneView.RepaintAll();
+            }
+        }
+
+
     }
 
     #endregion

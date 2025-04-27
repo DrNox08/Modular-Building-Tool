@@ -18,8 +18,6 @@ namespace BuildingToolUtils
         public static bool SpaceBar() => Check(KeyCode.Space, EventModifiers.None);
 
 
-
-
         private bool isHeld;
         private bool consumed;
 
@@ -62,6 +60,29 @@ namespace BuildingToolUtils
                 consumed = false;
             }
         }
+        
+        public static bool CtrlMiddleMouseClick()
+        {
+            Event e = Event.current;
+            if (e != null && e.type == EventType.MouseDown && e.button == 2)
+            {
+                // Invece di usare e.modifiers direttamente:
+                bool ctrlKeyHeld = Event.current.shift; // command per Mac
+
+                if (ctrlKeyHeld)
+                {
+                    e.Use();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+
+
+
+
+
 
         public bool Pressed()
         {
