@@ -86,6 +86,26 @@ namespace BuildingToolUtils
             return false;
         }
         
+        public static bool DrawButton_OptimizeHierarchy(GameObject buildingRoot)
+        {
+            if (GUILayout.Button("Optimize Hierarchy"))
+            {
+                bool confirm = EditorUtility.DisplayDialog(
+                    "Optimize Hierarchy",
+                    "Remove all ‘meshHolder’ containers and flatten the hierarchy? This action cannot be undone and is recommended only after the building phase is complete",
+                    "Yes",
+                    "No"
+                );
+
+                if (confirm)
+                    RemoveMeshHolders(buildingRoot);
+
+                return confirm;
+            }
+
+            return false;
+        }
+        
         public static bool DrawButton_SaveBuildingAsPrefab(GameObject buildingRoot, string buildingName)
         {
             if (GUILayout.Button("Save Building as Prefab"))
@@ -105,31 +125,6 @@ namespace BuildingToolUtils
             }
             return false;
         }
-        
-        public static void SaveBuildingAsPrefab(GameObject buildingRoot, string assetPath)
-        {
-            if (buildingRoot == null)
-            {
-                Debug.LogError("Cannot save prefab: building root is null.");
-                return;
-            }
-
-            // crea o sovrascrive il prefab asset
-            var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(
-                buildingRoot,
-                assetPath,
-                InteractionMode.UserAction
-            );
-
-            if (prefab != null)
-                Debug.Log($"Building saved as prefab at {assetPath}");
-            else
-                Debug.LogError($"Failed to save building prefab at {assetPath}");
-        }
-        
-
-
-
         public static void DrawCentered(Action drawFunc)
         {
             GUILayout.Space(5);
@@ -238,6 +233,48 @@ namespace BuildingToolUtils
             {
                 GameObject.DestroyImmediate(c);
             }
+        }
+        
+        public static void RemoveMeshHolders(GameObject root)
+        {
+            if (root == null) return;
+
+            // prende tutti i Transform il cui nome contiene "meshholder", ignorando maiuscole/minuscole
+            var holders = root
+                .GetComponentsInChildren<Transform>(includeInactive: true)
+                .Where(t => t.name
+                    .IndexOf("meshholder", StringComparison.OrdinalIgnoreCase) >= 0)
+                .ToList();
+
+            foreach (var holder in holders)
+            {
+                var children = holder.Cast<Transform>().ToList();
+                foreach (var child in children)
+                    child.SetParent(holder.parent, worldPositionStays: true);
+
+                UnityEngine.Object.DestroyImmediate(holder.gameObject);
+            }
+        }
+        
+        public static void SaveBuildingAsPrefab(GameObject buildingRoot, string assetPath)
+        {
+            if (buildingRoot == null)
+            {
+                Debug.LogError("Cannot save prefab: building root is null.");
+                return;
+            }
+
+            // crea o sovrascrive il prefab asset
+            var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(
+                buildingRoot,
+                assetPath,
+                InteractionMode.UserAction
+            );
+
+            if (prefab != null)
+                Debug.Log($"Building saved as prefab at {assetPath}");
+            else
+                Debug.LogError($"Failed to save building prefab at {assetPath}");
         }
         
         #endregion

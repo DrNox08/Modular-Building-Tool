@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
-using System.Linq;
 using BuildingToolUtils;
 using UnityEditor.SceneManagement;
 
@@ -193,6 +192,11 @@ public class BuildingTool : EditorWindow
             BuildingToolUtility.DrawButton_RemoveAllColliders(root));
         BuildingToolUtility.DrawCentered(() =>
         {
+            if (BuildingToolUtility.DrawButton_OptimizeHierarchy(root))
+                Debug.Log("Hierarchy optimized: all meshHolder containers removed.");
+        });
+        BuildingToolUtility.DrawCentered(() =>
+        {
             if (BuildingToolUtility.DrawButton_SaveBuildingAsPrefab(root, buildingName))
             {
                 EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
@@ -221,7 +225,7 @@ public class BuildingTool : EditorWindow
         //SceneView.RepaintAll();
     }
 
-    #region Building Tools
+    #region Building Tool
 
     void LoadAllPrefabs()
     {
@@ -313,7 +317,7 @@ public class BuildingTool : EditorWindow
 
         Material ghostMat = BuildingToolUtility.GetGhostMaterial();
 
-        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>(); // Using arrays in case i add props
+        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
 
         foreach (Renderer renderer in renderers)
         {
@@ -333,7 +337,7 @@ public class BuildingTool : EditorWindow
         previewInstance = Instantiate(selectedObject.prefab);
         previewInstance.name = selectedObject.prefab.name + "_preview";
 
-        //previewInstance.hideFlags = HideFlags.HideInHierarchy;
+        previewInstance.hideFlags = HideFlags.HideInHierarchy;
 
         SetPreviewMaterial(previewInstance, Color.red);
     }
@@ -457,22 +461,22 @@ public class BuildingTool : EditorWindow
 
         Vector3 scale = previewInstance.transform.localScale;
 
-        if (Mathf.Abs(sizeX - sizeZ) < 0.01f) // 🔥 Se è un quadrato
+        if (Mathf.Abs(sizeX - sizeZ) < 0.01f) 
         {
-            // Scala entrambi
+            // Scale Both
             scale.x = Mathf.Max(0.1f, scale.x + adjustAmount);
             scale.z = Mathf.Max(0.1f, scale.z + adjustAmount);
             Debug.Log("[Adjust] Stretch BOTH X and Z (Square Shape)");
         }
         else if (sizeX > sizeZ)
         {
-            // Scala solo X
+            // Scale X
             scale.x = Mathf.Max(0.1f, scale.x + adjustAmount);
             Debug.Log("[Adjust] Stretch X (Rectangle wider)");
         }
         else
         {
-            // Scala solo Z
+            // Scala Z
             scale.z = Mathf.Max(0.1f, scale.z + adjustAmount);
             Debug.Log("[Adjust] Stretch Z (Rectangle deeper)");
         }
@@ -496,7 +500,7 @@ public class BuildingTool : EditorWindow
             return;
         }
 
-        // --- Snapping personalizzato per i moduli CORNER
+        // --- Snapping for Corner Modules
         if (selectedObject.moduleType == ModuleType.CORNER)
         {
             Vector3 direction = (previewInstance.transform.position - target.transform.position).normalized;
@@ -525,7 +529,7 @@ public class BuildingTool : EditorWindow
             return;
         }
 
-        // --- Snapping standard per tutti gli altri moduli
+        // --- Snapping Standard
         Vector3 directionStandard = (previewInstance.transform.position - target.transform.position).normalized;
         Vector3 snapOffset = Vector3.zero;
 
