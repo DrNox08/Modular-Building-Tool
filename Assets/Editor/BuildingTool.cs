@@ -3,6 +3,7 @@ using UnityEditor;
 using System.Collections.Generic;
 using System.Linq;
 using BuildingToolUtils;
+using UnityEditor.SceneManagement;
 
 
 public class BuildingTool : EditorWindow
@@ -80,6 +81,9 @@ public class BuildingTool : EditorWindow
     private void OnDisable()
     {
         SceneView.duringSceneGui -= DuringSceneGUI;
+        DestroyImmediate(previewInstance);
+        buildState = ToolState.NoBuild;
+        SaveState();
     }
 
     private void OnGUI()
@@ -102,6 +106,21 @@ public class BuildingTool : EditorWindow
 
     void DrawInstructionTab()
     {
+        GUILayout.Space(10);
+        GUILayout.Label("Available Commands", EditorStyles.boldLabel);
+
+        EditorGUILayout.HelpBox("Quick building commands:", MessageType.Info);
+        GUILayout.Space(5);
+
+        EditorGUILayout.LabelField("Spacebar",             "Place the selected module");
+        EditorGUILayout.LabelField("Ctrl + Up Arrow",      "Go up one floor");
+        EditorGUILayout.LabelField("Ctrl + Down Arrow",    "Go down one floor");
+        EditorGUILayout.LabelField("Ctrl + Left Arrow",    "Rotate preview 90° left");
+        EditorGUILayout.LabelField("Ctrl + Right Arrow",   "Rotate preview 90° right");
+        EditorGUILayout.LabelField("Ctrl + Alt",           "Toggle vertical/horizontal snap");
+        EditorGUILayout.LabelField("Shift + Scroll Wheel", "Scale the selected module");
+        EditorGUILayout.LabelField("Ctrl + Middle Click",  "Reset preview to original scale");
+        BuildingToolUtility.ForceSceneFocus();
     }
 
     private void DuringSceneGUI(SceneView view)
@@ -122,13 +141,21 @@ public class BuildingTool : EditorWindow
             buildingName = EditorGUILayout.TextField(buildingName);
             if (GUILayout.Button("Start Building", EditorStyles.miniButtonRight))
             {
-                CreateNewRoot();
+                HandleStartBuilding();
                 buildState = ToolState.BuildInitiated;
                 SaveState();
                 BuildingToolUtility.ForceSceneFocus();
             }
-
+            
             GUILayout.EndHorizontal();
+            GUILayout.Space(30);
+            EditorGUILayout.HelpBox("Starting to build", MessageType.Info);
+            GUILayout.Space(5);
+            EditorGUILayout.LabelField(
+                "If you insert a building name that already exists in the scene,\n" +
+                "the construction will be resumed",
+                EditorStyles.wordWrappedLabel
+            );
             return;
         }
 
@@ -163,7 +190,17 @@ public class BuildingTool : EditorWindow
         DrawFoldout("Props", propsPrefabs);
         BuildingToolUtility.DrawSeparationLine(Color.white);
         BuildingToolUtility.DrawCentered(() =>
-            BuildingToolUtility.DrawButton_OptimizeColliders(floorParent, wallParent, roofParent));
+            BuildingToolUtility.DrawButton_RemoveAllColliders(root));
+        BuildingToolUtility.DrawCentered(() =>
+        {
+            if (BuildingToolUtility.DrawButton_SaveBuildingAsPrefab(root, buildingName))
+            {
+                EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+                DestroyImmediate(root);
+                DestroyImmediate(previewInstance);
+                buildState = ToolState.NoBuild;
+            }
+        });
     }
 
 
@@ -375,7 +412,8 @@ public class BuildingTool : EditorWindow
             }
             //Try Snapping
 
-            if (closestModule != null && closestDist <= currentSnappingTreshold || closestModule != null && verticalSnap)
+            if (closestModule != null && closestDist <= currentSnappingTreshold ||
+                closestModule != null && verticalSnap)
                 SnapToClosestModule(closestModule);
 
             // Visual Feedback
@@ -405,7 +443,7 @@ public class BuildingTool : EditorWindow
 
         return true;
     }
-    
+
     void AdjustPreviewScale(float delta)
     {
         if (previewInstance == null) return;
@@ -438,15 +476,13 @@ public class BuildingTool : EditorWindow
             scale.z = Mathf.Max(0.1f, scale.z + adjustAmount);
             Debug.Log("[Adjust] Stretch Z (Rectangle deeper)");
         }
+
         currentSnappingTreshold += adjustAmount;
         previewInstance.transform.localScale = scale;
 
         HandleUtility.Repaint();
         SceneView.RepaintAll();
     }
-
-
-
 
 
     void SnapToClosestModule(GameObject target)
@@ -486,7 +522,7 @@ public class BuildingTool : EditorWindow
             Debug.Log($"CORNER: dir = {direction}, target = {target.name}");
             Debug.Log($"target.extents = {targetBounds.extents}, preview.extents = {previewBounds.extents}");
 
-            return; 
+            return;
         }
 
         // --- Snapping standard per tutti gli altri moduli
@@ -541,10 +577,43 @@ public class BuildingTool : EditorWindow
                 return null;
         }
     }
+    
+    private void HandleStartBuilding()
+    {
+        GameObject existing = GameObject.Find(buildingName);
+        if (existing != null)
+        {
+            EditorUtility.DisplayDialog(
+                "Building Resumed",
+                $"Hai ripreso la costruzione di “{buildingName}”.",
+                "OK"
+            );
+            
+            root = existing;
+
+            Transform t;
+
+            t = root.transform.Find("Floors");
+            if (t != null) floorParent = t.gameObject;
+
+            t = root.transform.Find("Walls");
+            if (t != null) wallParent = t.gameObject;
+
+            t = root.transform.Find("Roofs");
+            if (t != null) roofParent = t.gameObject;
+
+            t = root.transform.Find("Props");
+            if (t != null) propsParent = t.gameObject;
+
+            return;
+        }
+        
+        CreateNewRoot();
+        
+    }
+
 
     // Inputs
-    
-    
     void HandleScrollWheel()
     {
         Event e = Event.current;
@@ -615,8 +684,9 @@ public class BuildingTool : EditorWindow
         if (EditorKeyToggle.Ctrl(KeyCode.LeftAlt))
         {
             verticalSnap = !verticalSnap;
+            Repaint();
         }
-        
+
         if (EditorKeyToggle.CtrlMiddleMouseClick())
         {
             if (previewInstance != null)
@@ -627,8 +697,6 @@ public class BuildingTool : EditorWindow
                 SceneView.RepaintAll();
             }
         }
-
-
     }
 
     #endregion

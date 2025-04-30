@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -50,7 +51,7 @@ namespace BuildingToolUtils
         }
 
         public static bool DrawButton_OptimizeColliders(GameObject _floorParent, GameObject _wallParent,
-            GameObject _roofParent)
+            GameObject _roofParent) // NOT IMPLEMENTED
         {
             if (GUILayout.Button("Optimize Colliders", EditorStyles.miniButtonMid, GUILayout.Width(500)))
             {
@@ -63,9 +64,70 @@ namespace BuildingToolUtils
 
             return false;
         }
+        
+        public static bool DrawButton_RemoveAllColliders(GameObject buildingRoot)
+        {
+            if (GUILayout.Button("Remove All Colliders"))
+            {
+                bool confirm = EditorUtility.DisplayDialog(
+                    "Remove All Colliders",
+                    "Are you sure you want to remove all colliders from this building? This action cannot be undone and is recommended only after the building phase is complete (you will not be able to snap modules).",
+                    "Yes",
+                    "No"
+                );
 
-        //TODO: BUTTON TO REMOVE ALL COLLIDERS
-        //TODO: BUTTON TO SAVE THE PREFAB
+                if (confirm && buildingRoot != null)
+                {
+                    RemoveAllColliders(buildingRoot);
+                }
+
+                return confirm;
+            }
+            return false;
+        }
+        
+        public static bool DrawButton_SaveBuildingAsPrefab(GameObject buildingRoot, string buildingName)
+        {
+            if (GUILayout.Button("Save Building as Prefab"))
+            {
+                string path = EditorUtility.SaveFilePanelInProject(
+                    "Save Building Prefab",
+                    buildingName,
+                    "prefab",
+                    "Select a folder and filename for your building prefab"
+                );
+
+                if (!string.IsNullOrEmpty(path))
+                {
+                    SaveBuildingAsPrefab(buildingRoot, path);
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        public static void SaveBuildingAsPrefab(GameObject buildingRoot, string assetPath)
+        {
+            if (buildingRoot == null)
+            {
+                Debug.LogError("Cannot save prefab: building root is null.");
+                return;
+            }
+
+            // crea o sovrascrive il prefab asset
+            var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(
+                buildingRoot,
+                assetPath,
+                InteractionMode.UserAction
+            );
+
+            if (prefab != null)
+                Debug.Log($"Building saved as prefab at {assetPath}");
+            else
+                Debug.LogError($"Failed to save building prefab at {assetPath}");
+        }
+        
+
 
 
         public static void DrawCentered(Action drawFunc)
@@ -163,6 +225,21 @@ namespace BuildingToolUtils
             return ModuleType.PROPS;
         }
 
+        #endregion
+        
+        #region Ending Building Fucntions
+        
+        public static void RemoveAllColliders(GameObject root)
+        {
+            if (root == null) return;
+            
+            var all = root.GetComponentsInChildren<Collider>(includeInactive: true);
+            foreach (var c in all)
+            {
+                GameObject.DestroyImmediate(c);
+            }
+        }
+        
         #endregion
 
         #region Gizmos

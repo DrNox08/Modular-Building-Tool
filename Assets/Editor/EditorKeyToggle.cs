@@ -66,8 +66,8 @@ namespace BuildingToolUtils
             Event e = Event.current;
             if (e != null && e.type == EventType.MouseDown && e.button == 2)
             {
-                // Invece di usare e.modifiers direttamente:
-                bool ctrlKeyHeld = Event.current.shift; // command per Mac
+               
+                bool ctrlKeyHeld = Event.current.shift;
 
                 if (ctrlKeyHeld)
                 {
@@ -77,12 +77,6 @@ namespace BuildingToolUtils
             }
             return false;
         }
-
-
-
-
-
-
 
         public bool Pressed()
         {
@@ -99,5 +93,11 @@ namespace BuildingToolUtils
             Update(e);
             return Pressed();
         }
+
     }
 }
+
+
+
+
+
