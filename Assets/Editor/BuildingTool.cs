@@ -452,41 +452,51 @@ public class BuildingTool : EditorWindow
     {
         if (previewInstance == null) return;
 
+        // 1) di quanto vogliamo variare (±0.1)
         float adjustAmount = Mathf.Sign(delta) * 0.1f;
 
-        Bounds bounds = BuildingToolUtility.CalculateBounds(previewInstance);
+        // 2) bounding‐box del prefab (coordinate locali, senza rotazioni/applicazioni in scena)
+        Bounds prefabBounds = BuildingToolUtility.CalculateBounds(selectedObject.prefab);
+        float prefabSizeX = prefabBounds.size.x;
+        float prefabSizeZ = prefabBounds.size.z;
 
-        float sizeX = bounds.size.x;
-        float sizeZ = bounds.size.z;
+        // 3) scala corrente e nuova scala "tentata"
+        Vector3 currentScale = previewInstance.transform.localScale;
+        Vector3 newScale = currentScale;
 
-        Vector3 scale = previewInstance.transform.localScale;
-
-        if (Mathf.Abs(sizeX - sizeZ) < 0.01f) 
+        // se prefab "quasi quadrato" → uniform scaling
+        if (Mathf.Abs(prefabSizeX - prefabSizeZ) < 0.01f)
         {
-            // Scale Both
-            scale.x = Mathf.Max(0.1f, scale.x + adjustAmount);
-            scale.z = Mathf.Max(0.1f, scale.z + adjustAmount);
-            Debug.Log("[Adjust] Stretch BOTH X and Z (Square Shape)");
+            newScale.x = Mathf.Max(0.1f, currentScale.x + adjustAmount);
+            newScale.z = Mathf.Max(0.1f, currentScale.z + adjustAmount);
         }
-        else if (sizeX > sizeZ)
+        // altrimenti scelgo l’asse locale X o Z più lungo nel modello
+        else if (prefabSizeX > prefabSizeZ)
         {
-            // Scale X
-            scale.x = Mathf.Max(0.1f, scale.x + adjustAmount);
-            Debug.Log("[Adjust] Stretch X (Rectangle wider)");
+            newScale.x = Mathf.Max(0.1f, currentScale.x + adjustAmount);
         }
         else
         {
-            // Scala Z
-            scale.z = Mathf.Max(0.1f, scale.z + adjustAmount);
-            Debug.Log("[Adjust] Stretch Z (Rectangle deeper)");
+            newScale.z = Mathf.Max(0.1f, currentScale.z + adjustAmount);
         }
 
-        currentSnappingTreshold += adjustAmount;
-        previewInstance.transform.localScale = scale;
+        // 4) applico la "scala tentata" e controllo collisioni
+        previewInstance.transform.localScale = newScale;
+        if (!IsValidPosition())
+        {
+            // se c’è intersezione, torno alla scala precedente
+            previewInstance.transform.localScale = currentScale;
+            Debug.Log("[Adjust] Scaling blocked: not enough space");
+            return;
+        }
 
+        // 5) se valido, aggiorno la soglia di snap e provo a repaint
+        currentSnappingTreshold += adjustAmount;
         HandleUtility.Repaint();
         SceneView.RepaintAll();
     }
+
+
 
 
     void SnapToClosestModule(GameObject target)
