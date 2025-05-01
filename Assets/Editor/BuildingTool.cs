@@ -3,6 +3,7 @@ using UnityEditor;
 using System.Collections.Generic;
 using BuildingToolUtils;
 using UnityEditor.SceneManagement;
+using UnityEngine.Profiling;
 
 
 public class BuildingTool : EditorWindow
@@ -111,14 +112,14 @@ public class BuildingTool : EditorWindow
         EditorGUILayout.HelpBox("Quick building commands:", MessageType.Info);
         GUILayout.Space(5);
 
-        EditorGUILayout.LabelField("Spacebar",             "Place the selected module");
-        EditorGUILayout.LabelField("Ctrl + Up Arrow",      "Go up one floor");
-        EditorGUILayout.LabelField("Ctrl + Down Arrow",    "Go down one floor");
-        EditorGUILayout.LabelField("Ctrl + Left Arrow",    "Rotate preview 90° left");
-        EditorGUILayout.LabelField("Ctrl + Right Arrow",   "Rotate preview 90° right");
-        EditorGUILayout.LabelField("Ctrl + Alt",           "Toggle vertical/horizontal snap");
+        EditorGUILayout.LabelField("Spacebar", "Place the selected module");
+        EditorGUILayout.LabelField("Ctrl + Up Arrow", "Go up one floor");
+        EditorGUILayout.LabelField("Ctrl + Down Arrow", "Go down one floor");
+        EditorGUILayout.LabelField("Ctrl + Left Arrow", "Rotate preview 90° left");
+        EditorGUILayout.LabelField("Ctrl + Right Arrow", "Rotate preview 90° right");
+        EditorGUILayout.LabelField("Ctrl + Alt", "Toggle vertical/horizontal snap");
         EditorGUILayout.LabelField("Shift + Scroll Wheel", "Scale the selected module");
-        EditorGUILayout.LabelField("Ctrl + Middle Click",  "Reset preview to original scale");
+        EditorGUILayout.LabelField("Ctrl + Middle Click", "Reset preview to original scale");
         BuildingToolUtility.ForceSceneFocus();
     }
 
@@ -145,7 +146,7 @@ public class BuildingTool : EditorWindow
                 SaveState();
                 BuildingToolUtility.ForceSceneFocus();
             }
-            
+
             GUILayout.EndHorizontal();
             GUILayout.Space(30);
             EditorGUILayout.HelpBox("Starting to build", MessageType.Info);
@@ -423,9 +424,10 @@ public class BuildingTool : EditorWindow
             // Visual Feedback
             Color previewColor = IsValidPosition() ? Color.green : Color.red;
             SetPreviewMaterial(previewInstance, previewColor);
-            HandleUtility.Repaint();
-            SceneView.RepaintAll();
+            //HandleUtility.Repaint();
         }
+
+        SceneView.RepaintAll();
     }
 
     private bool IsValidPosition()
@@ -492,11 +494,9 @@ public class BuildingTool : EditorWindow
 
         // 5) se valido, aggiorno la soglia di snap e provo a repaint
         currentSnappingTreshold += adjustAmount;
-        HandleUtility.Repaint();
-        SceneView.RepaintAll();
+        //HandleUtility.Repaint();
+        //SceneView.RepaintAll();
     }
-
-
 
 
     void SnapToClosestModule(GameObject target)
@@ -591,7 +591,7 @@ public class BuildingTool : EditorWindow
                 return null;
         }
     }
-    
+
     private void HandleStartBuilding()
     {
         GameObject existing = GameObject.Find(buildingName);
@@ -602,7 +602,7 @@ public class BuildingTool : EditorWindow
                 $"Hai ripreso la costruzione di “{buildingName}”.",
                 "OK"
             );
-            
+
             root = existing;
 
             Transform t;
@@ -621,9 +621,8 @@ public class BuildingTool : EditorWindow
 
             return;
         }
-        
+
         CreateNewRoot();
-        
     }
 
 
@@ -641,8 +640,8 @@ public class BuildingTool : EditorWindow
                 AdjustPreviewScale(scrollDelta);
 
                 e.Use();
-                HandleUtility.Repaint();
-                SceneView.RepaintAll();
+                //HandleUtility.Repaint();
+                //SceneView.RepaintAll();
             }
         }
     }
@@ -707,8 +706,8 @@ public class BuildingTool : EditorWindow
             {
                 previewInstance.transform.localScale = originalPreviewScale;
                 currentSnappingTreshold = snappingTreshold;
-                HandleUtility.Repaint();
-                SceneView.RepaintAll();
+                //HandleUtility.Repaint();
+                //SceneView.RepaintAll();
             }
         }
     }
