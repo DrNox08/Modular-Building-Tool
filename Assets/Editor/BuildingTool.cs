@@ -427,7 +427,7 @@ public class BuildingTool : EditorWindow
             //HandleUtility.Repaint();
         }
 
-        SceneView.RepaintAll();
+        //SceneView.RepaintAll();
     }
 
     private bool IsValidPosition()
@@ -453,26 +453,22 @@ public class BuildingTool : EditorWindow
     void AdjustPreviewScale(float delta)
     {
         if (previewInstance == null) return;
-
-        // 1) di quanto vogliamo variare (±0.1)
+        
         float adjustAmount = Mathf.Sign(delta) * 0.1f;
-
-        // 2) bounding‐box del prefab (coordinate locali, senza rotazioni/applicazioni in scena)
+        
         Bounds prefabBounds = BuildingToolUtility.CalculateBounds(selectedObject.prefab);
         float prefabSizeX = prefabBounds.size.x;
         float prefabSizeZ = prefabBounds.size.z;
-
-        // 3) scala corrente e nuova scala "tentata"
+        
         Vector3 currentScale = previewInstance.transform.localScale;
         Vector3 newScale = currentScale;
-
-        // se prefab "quasi quadrato" → uniform scaling
+        
         if (Mathf.Abs(prefabSizeX - prefabSizeZ) < 0.01f)
         {
             newScale.x = Mathf.Max(0.1f, currentScale.x + adjustAmount);
             newScale.z = Mathf.Max(0.1f, currentScale.z + adjustAmount);
         }
-        // altrimenti scelgo l’asse locale X o Z più lungo nel modello
+
         else if (prefabSizeX > prefabSizeZ)
         {
             newScale.x = Mathf.Max(0.1f, currentScale.x + adjustAmount);
@@ -481,18 +477,15 @@ public class BuildingTool : EditorWindow
         {
             newScale.z = Mathf.Max(0.1f, currentScale.z + adjustAmount);
         }
-
-        // 4) applico la "scala tentata" e controllo collisioni
+        
         previewInstance.transform.localScale = newScale;
         if (!IsValidPosition())
         {
-            // se c’è intersezione, torno alla scala precedente
             previewInstance.transform.localScale = currentScale;
             Debug.Log("[Adjust] Scaling blocked: not enough space");
             return;
         }
-
-        // 5) se valido, aggiorno la soglia di snap e provo a repaint
+        
         currentSnappingTreshold += adjustAmount;
         //HandleUtility.Repaint();
         //SceneView.RepaintAll();
