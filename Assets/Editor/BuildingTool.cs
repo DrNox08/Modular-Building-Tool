@@ -47,6 +47,8 @@ public class BuildingTool : EditorWindow
     bool verticalSnap;
     private Vector3 originalPreviewScale;
     float currentSnappingTreshold;
+    private Vector2 _scrollPos;
+
 
     //State Management
     void SaveState() => EditorPrefs.SetInt("BuildState", (int)buildState);
@@ -183,11 +185,16 @@ public class BuildingTool : EditorWindow
         BuildingToolUtility.DrawSeparationLine(Color.white);
         GUILayout.Label("Current Floor: " + currentFloor / 3, EditorStyles.boldLabel);
         BuildingToolUtility.DrawSeparationLine(Color.white);
+        _scrollPos = EditorGUILayout.BeginScrollView(
+            _scrollPos,
+            GUILayout.ExpandHeight(true)
+        );
         DrawFoldout("Floor", floorPrefabs);
         DrawFoldout("Wall", wallPrefabs);
         DrawFoldout("Roof", roofPrefabs);
         DrawFoldout("Junctions", junctionsPrefabs);
         DrawFoldout("Props", propsPrefabs);
+        EditorGUILayout.EndScrollView();
         BuildingToolUtility.DrawSeparationLine(Color.white);
         BuildingToolUtility.DrawCentered(() =>
             BuildingToolUtility.DrawButton_RemoveAllColliders(root));
