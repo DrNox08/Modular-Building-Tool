@@ -269,7 +269,7 @@ public class BuildingTool : EditorWindow
             for (int j = 0; j < buttonsPerRow && i < modules.Length; j++, i++)
             {
                 GameObject prefab = modules[i].prefab;
-                if (GUILayout.Button(prefab.name, GUILayout.Width(80), GUILayout.Height(80)))
+                if (GUILayout.Button(prefab.name, GUILayout.Width(120), GUILayout.Height(50)))
                 {
                     selectedObject = modules[i];
                     originalPreviewScale = prefab.transform.localScale;
