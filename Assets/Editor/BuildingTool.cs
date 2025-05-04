@@ -25,7 +25,7 @@ public class BuildingTool : EditorWindow
     Dictionary<string, bool> foldoutStates = new();
 
     // Settings
-
+    private bool ActiveGizmos;
 
     // Paths
     string floorPath = "Assets/Prefabs/Floor";
@@ -77,6 +77,7 @@ public class BuildingTool : EditorWindow
         currentFloor = 0;
         verticalSnap = false;
         currentSnappingTreshold = snappingTreshold;
+        ActiveGizmos = false;
         SceneView.duringSceneGui += DuringSceneGUI;
     }
 
@@ -179,8 +180,33 @@ public class BuildingTool : EditorWindow
         GUILayout.EndHorizontal();
         BuildingToolUtility.DrawSeparationLine(Color.white);
         BuildingToolUtility.DrawCentered(() => GUILayout.Label("SETTINGS"));
-        if (verticalSnap) GUILayout.Label("Snap: Vertical", EditorStyles.centeredGreyMiniLabel);
-        else GUILayout.Label("Snap: Horizontal (Standard)", EditorStyles.centeredGreyMiniLabel);
+        GUIStyle snapSettingsStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel)
+        {
+            fontSize = 12,
+            alignment = TextAnchor.MiddleCenter
+        };
+        if (verticalSnap) GUILayout.Label("Snap: Vertical", snapSettingsStyle);
+        else GUILayout.Label("Snap: Horizontal (Standard)", snapSettingsStyle);
+        
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.FlexibleSpace();
+        EditorGUI.BeginChangeCheck();
+        bool newActive = GUILayout.Toggle(
+            ActiveGizmos,
+            "Active Gizmos (better view)",
+            GUILayout.ExpandWidth(false)
+        );
+        
+        if (EditorGUI.EndChangeCheck())
+        {
+            ActiveGizmos = newActive;         
+            BuildingToolUtility.ForceSceneFocus(); 
+        }
+
+        GUILayout.FlexibleSpace();
+        EditorGUILayout.EndHorizontal();
+        
+
 
         BuildingToolUtility.DrawSeparationLine(Color.white);
         GUILayout.Label("Current Floor: " + currentFloor / 3, EditorStyles.boldLabel);
@@ -276,7 +302,7 @@ public class BuildingTool : EditorWindow
             for (int j = 0; j < buttonsPerRow && i < modules.Length; j++, i++)
             {
                 GameObject prefab = modules[i].prefab;
-                if (GUILayout.Button(prefab.name, GUILayout.Width(120), GUILayout.Height(50)))
+                if (GUILayout.Button(prefab.name, GUILayout.Width(130), GUILayout.Height(50)))
                 {
                     selectedObject = modules[i];
                     originalPreviewScale = prefab.transform.localScale;
@@ -386,7 +412,8 @@ public class BuildingTool : EditorWindow
             {
                 hits = Physics.OverlapBox(uniformedBoundsXZ.center, halfExtentsUniformed,
                     previewInstance.transform.rotation);
-                Handles.DrawWireCube(uniformedBoundsXZ.center, halfExtentsUniformed * 2);
+                if (ActiveGizmos)
+                    Handles.DrawWireCube(uniformedBoundsXZ.center, halfExtentsUniformed * 2);
             }
             else
             {
@@ -399,8 +426,11 @@ public class BuildingTool : EditorWindow
                 Vector3 center = previewBounds.center + (Vector3.down * 2);
 
                 hits = Physics.OverlapBox(center, adjustedExtents);
-                Handles.DrawWireCube(center, adjustedExtents * 2);
-                BuildingToolUtility.DrawSolidSphere(previewBounds.center + (Vector3.down * 4), 0.1f);
+                if (ActiveGizmos)
+                {
+                    Handles.DrawWireCube(center, adjustedExtents * 2);
+                    BuildingToolUtility.DrawSolidSphere(previewBounds.center + (Vector3.down * 4), 0.1f);
+                }
             }
 
             float closestDist = float.MaxValue;
@@ -408,7 +438,8 @@ public class BuildingTool : EditorWindow
             foreach (var col in hits)
             {
                 Handles.color = Color.magenta;
-                Handles.DrawWireCube(col.bounds.center, col.bounds.size);
+                if (ActiveGizmos)
+                    Handles.DrawWireCube(col.bounds.center, col.bounds.size);
                 if (col.transform.IsChildOf(previewInstance.transform)) continue;
 
                 ModuleType targetType = BuildingToolUtility.GetModuleTypeFromCollider(col);
@@ -460,16 +491,16 @@ public class BuildingTool : EditorWindow
     void AdjustPreviewScale(float delta)
     {
         if (previewInstance == null) return;
-        
+
         float adjustAmount = Mathf.Sign(delta) * 0.1f;
-        
+
         Bounds prefabBounds = BuildingToolUtility.CalculateBounds(selectedObject.prefab);
         float prefabSizeX = prefabBounds.size.x;
         float prefabSizeZ = prefabBounds.size.z;
-        
+
         Vector3 currentScale = previewInstance.transform.localScale;
         Vector3 newScale = currentScale;
-        
+
         if (Mathf.Abs(prefabSizeX - prefabSizeZ) < 0.01f)
         {
             newScale.x = Mathf.Max(0.1f, currentScale.x + adjustAmount);
@@ -484,7 +515,7 @@ public class BuildingTool : EditorWindow
         {
             newScale.z = Mathf.Max(0.1f, currentScale.z + adjustAmount);
         }
-        
+
         previewInstance.transform.localScale = newScale;
         if (!IsValidPosition())
         {
@@ -492,7 +523,7 @@ public class BuildingTool : EditorWindow
             Debug.Log("[Adjust] Scaling blocked: not enough space");
             return;
         }
-        
+
         currentSnappingTreshold += adjustAmount;
         //HandleUtility.Repaint();
         //SceneView.RepaintAll();
