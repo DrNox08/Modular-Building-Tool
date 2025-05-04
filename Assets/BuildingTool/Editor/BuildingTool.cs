@@ -28,11 +28,11 @@ public class BuildingTool : EditorWindow
     private bool ActiveGizmos;
 
     // Paths
-    string floorPath = "Assets/Prefabs/Floor";
-    string wallPath = "Assets/Prefabs/Wall";
-    string roofPath = "Assets/Prefabs/Roof";
-    string propsPath = "Assets/Prefabs/Props";
-    string junctionsPath = "Assets/Prefabs/Junctions";
+    string floorPath = "Assets/BuildingTool/Prefabs/Floor";
+    string wallPath = "Assets/BuildingTool/Prefabs/Wall";
+    string roofPath = "Assets/BuildingTool/Prefabs/Roof";
+    string propsPath = "Assets/BuildingTool/Prefabs/Props";
+    string junctionsPath = "Assets/BuildingTool/Prefabs/Junctions";
     // --------------------------------------------------------------------------------------\\
 
     //Fields
