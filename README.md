@@ -29,7 +29,7 @@ This project provides an editor extension that lets you assemble structures in-s
 
 ## Requirements
 
-- Unity 2020.3 LTS or newer  
+- Unity 6000+ (SRP) 
 - Scripting Define Symbols enabled for editor scripts  
 - (Optional) **Editor Coroutines** package for coroutine support in custom tools
 
